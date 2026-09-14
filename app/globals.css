@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — outdoor-legibility-first (see v0-prompts/00-design-system.md
+ * for the full rationale). Light background, very high contrast text,
+ * tabular numerals for the hero countdown, and a single warm risk ramp
+ * instead of the full EPA rainbow across the whole UI. The EPA's official
+ * green->yellow->orange->red->purple scale is reserved for the small
+ * /methods legend only, where its recognizability is actually useful.
+ */
+:root {
+  --background: #fafaf9;
+  --surface: #ffffff;
+  --foreground: #111114;
+  --muted-foreground: #52525b;
+  --border: #e4e4e7;
+
+  --accent: #0f766e; /* teal — primary action color, not risk-coded */
+  --accent-foreground: #ffffff;
+
+  /* Single warm risk ramp: neutral -> amber -> red. Never the sole signal —
+     always paired with a numeral + text label. */
+  --risk-low: #166534;
+  --risk-medium: #b45309;
+  --risk-high: #b91c1c;
+
+  /* EPA UV Index legend colors — used ONLY in the small index legend on /methods. */
+  --epa-low: #299501;
+  --epa-moderate: #f7e401;
+  --epa-high: #f95901;
+  --epa-very-high: #d90011;
+  --epa-extreme: #6c49cb;
+
+  --radius: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #111114;
+    --surface: #1b1b1f;
+    --foreground: #f5f5f4;
+    --muted-foreground: #a1a1aa;
+    --border: #303036;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #111114;
+  --surface: #1b1b1f;
+  --foreground: #f5f5f4;
+  --muted-foreground: #a1a1aa;
+  --border: #303036;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-number {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
