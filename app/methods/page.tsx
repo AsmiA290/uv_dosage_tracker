@@ -1,5 +1,6 @@
 import { CITATIONS, type Citation } from "@/lib/dose/citations";
 import { cn } from "@/lib/utils";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const EPA_LEGEND = [
   { label: "Low", range: "0–2", color: "var(--epa-low)" },
@@ -60,7 +61,10 @@ export default function MethodsPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-10 px-6 py-8 pb-28">
       <header className="flex flex-col gap-3">
-        <h1 className="text-lg font-semibold">Methods & Citations</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-lg font-semibold">Methods & Citations</h1>
+          <SignOutButton />
+        </div>
         <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
           This app estimates your personal cumulative UV dose from forecasted UV Index, your skin type, and
           your logged sunscreen use. It does not assess, diagnose, or evaluate any skin condition, and it is

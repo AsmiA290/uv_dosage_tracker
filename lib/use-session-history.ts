@@ -1,36 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { readSessionHistory, SESSION_HISTORY_STORAGE_KEY, type HistoricalSession } from "@/lib/session-history";
+import { useCallback, useEffect, useState } from "react";
+import { fetchDbSessionHistory } from "@/lib/supabase/sessions";
+import type { HistoricalSession } from "@/lib/session-history";
 
 /**
- * Isolated data-fetching hook so the History screen can be swapped to a
- * real API route (backed by `exposureSessions` / `doseRecords` in
- * lib/db/schema.ts) later without touching any rendering code below it.
+ * Isolated data-fetching hook so the History screen doesn't need to know
+ * how persistence works. Backed by Supabase (`sessions` + `dose_records`,
+ * see lib/supabase/sessions.ts) and scoped to the signed-in user via RLS.
  */
-export function useSessionHistory(): { sessions: HistoricalSession[]; isLoading: boolean } {
+export function useSessionHistory(): {
+  sessions: HistoricalSession[];
+  isLoading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
   const [sessions, setSessions] = useState<HistoricalSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const refresh = useCallback(() => setReloadToken((t) => t + 1), []);
 
   useEffect(() => {
-    const load = () => {
-      setSessions(readSessionHistory());
-      setIsLoading(false);
-    };
-    load();
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === SESSION_HISTORY_STORAGE_KEY || e.key === null) load();
-    };
-    const onLocalUpdate = () => load();
-
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("uv-dose-tracker:sessions-updated", onLocalUpdate);
+    let cancelled = false;
+    setIsLoading(true);
+    fetchDbSessionHistory()
+      .then((data) => {
+        if (!cancelled) setSessions(data);
+      })
+      .catch((err) => {
+        console.error("[v0] Failed to load session history:", err);
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load history.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("uv-dose-tracker:sessions-updated", onLocalUpdate);
+      cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
-  return { sessions, isLoading };
+  return { sessions, isLoading, error, refresh };
 }

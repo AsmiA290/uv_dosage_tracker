@@ -14,7 +14,7 @@ import type {
   SunscreenApplication,
   SurfaceType,
 } from "@/lib/dose/types";
-import { saveSessionToHistory } from "@/lib/session-history";
+import { createDbSession, endDbSession, insertSunscreenApplicationRow } from "@/lib/supabase/sessions";
 import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
@@ -45,6 +45,7 @@ type SetupState = {
 };
 
 type ActiveSession = {
+  id: string;
   startedAt: Date;
   setup: SetupState;
   applications: SunscreenApplication[];
@@ -78,6 +79,10 @@ export default function SessionPage() {
   const [addingSunscreen, setAddingSunscreen] = useState(false);
   const [addSpf, setAddSpf] = useState("");
   const [addThickness, setAddThickness] = useState(1.0);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Fetch once on mount — forecast is reused across the active session; the
   // dose engine only needs samples spanning sessionStart..now, and Open-Meteo
@@ -130,23 +135,45 @@ export default function SessionPage() {
     return active.applications.some((a) => shouldReapply(a, now));
   }, [active, now]);
 
-  function handleStart() {
-    const applications: SunscreenApplication[] = [];
-    const spfNumber = Number(setup.spf);
-    if (setup.spf && Number.isFinite(spfNumber) && spfNumber > 0) {
-      applications.push({
-        appliedAt: new Date(),
-        labeledSPF: spfNumber,
-        appliedThicknessMgCm2: setup.thickness,
-        wearCondition: "dry",
+  async function handleStart() {
+    const startedAt = new Date();
+    setStartError(null);
+    setIsStarting(true);
+    try {
+      const sessionId = await createDbSession({
+        startedAt,
+        latitude: DEFAULT_LAT,
+        longitude: DEFAULT_LON,
+        surface: setup.surface,
+        posture: setup.posture,
+        fitzpatrickType: setup.fitzpatrickType,
       });
+
+      const applications: SunscreenApplication[] = [];
+      const spfNumber = Number(setup.spf);
+      if (setup.spf && Number.isFinite(spfNumber) && spfNumber > 0) {
+        const application: SunscreenApplication = {
+          appliedAt: startedAt,
+          labeledSPF: spfNumber,
+          appliedThicknessMgCm2: setup.thickness,
+          wearCondition: "dry",
+        };
+        applications.push(application);
+        await insertSunscreenApplicationRow(sessionId, application);
+      }
+
+      setActive({ id: sessionId, startedAt, setup, applications, note: "" });
+      setNow(new Date());
+      setPhase("active");
+    } catch (error: unknown) {
+      console.error("[v0] Failed to start session:", error);
+      setStartError(error instanceof Error ? error.message : "Could not start session. Please try again.");
+    } finally {
+      setIsStarting(false);
     }
-    setActive({ startedAt: new Date(), setup, applications, note: "" });
-    setNow(new Date());
-    setPhase("active");
   }
 
-  function handleLogReapplication(condition: "dry" | "sweating" | "swimming" = "dry") {
+  async function handleLogReapplication(condition: "dry" | "sweating" | "swimming" = "dry") {
     if (!active) return;
     const spfNumber = Number(addSpf || setup.spf || active.applications.at(-1)?.labeledSPF || 30);
     const application: SunscreenApplication = {
@@ -158,6 +185,11 @@ export default function SessionPage() {
     setActive({ ...active, applications: [...active.applications, application] });
     setAddingSunscreen(false);
     setAddSpf("");
+    try {
+      await insertSunscreenApplicationRow(active.id, application);
+    } catch (error) {
+      console.error("[v0] Failed to log sunscreen application:", error);
+    }
   }
 
   function handleEnd() {
@@ -167,19 +199,24 @@ export default function SessionPage() {
     setPhase("ended");
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!ended) return;
-    saveSessionToHistory({
-      id: crypto.randomUUID(),
-      startedAt: ended.startedAt.toISOString(),
-      endedAt: ended.endedAt.toISOString(),
-      fitzpatrickType: ended.setup.fitzpatrickType,
-      cumulativeDoseSED: ended.estimate.cumulativeDoseSED,
-      medThresholdSED: ended.estimate.medThresholdSED,
-      surface: ended.setup.surface,
-      note: ended.note || undefined,
-    });
-    resetToIdle();
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await endDbSession({
+        sessionId: ended.id,
+        endedAt: ended.endedAt,
+        estimate: ended.estimate,
+        note: ended.note,
+      });
+      resetToIdle();
+    } catch (error: unknown) {
+      console.error("[v0] Failed to save session:", error);
+      setSaveError(error instanceof Error ? error.message : "Could not save session. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function resetToIdle() {
@@ -241,12 +278,23 @@ export default function SessionPage() {
           />
         </label>
 
+        {saveError && (
+          <p className="rounded-[var(--radius)] border border-[var(--risk-high)]/30 bg-[var(--risk-high)]/10 p-3 text-sm text-[var(--foreground)]">
+            {saveError}
+          </p>
+        )}
+
         <div className="flex gap-3">
-          <Button variant="outline" size="session" className="flex-1" onClick={resetToIdle}>
+          <Button variant="outline" size="session" className="flex-1" onClick={resetToIdle} disabled={isSaving}>
             Discard
           </Button>
-          <Button size="session" className="flex-1 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90" onClick={handleSave}>
-            Save
+          <Button
+            size="session"
+            className="flex-1 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving…" : "Save"}
           </Button>
         </div>
       </main>
@@ -491,13 +539,19 @@ export default function SessionPage() {
         )}
       </fieldset>
 
+      {startError && (
+        <p className="rounded-[var(--radius)] border border-[var(--risk-high)]/30 bg-[var(--risk-high)]/10 p-3 text-sm text-[var(--foreground)]">
+          {startError}
+        </p>
+      )}
+
       <Button
         size="session"
         onClick={handleStart}
-        disabled={!samples}
+        disabled={!samples || isStarting}
         className="mt-2 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
       >
-        {samples ? "Start Session" : "Loading forecast…"}
+        {isStarting ? "Starting…" : samples ? "Start Session" : "Loading forecast…"}
       </Button>
 
       {lastSavedSummary && (
