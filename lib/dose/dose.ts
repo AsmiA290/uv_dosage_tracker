@@ -7,7 +7,7 @@ import {
 import { empiricalCloudModificationFactor, personalExposureRatio } from "./corrections";
 import { integrateErythemalDoseSED, interpolateHourlyToMinutes, uviToErythemalIrradianceWm2 } from "./irradiance";
 import { activeSPFAtTime, protectionMultiplier } from "./sunscreen";
-import { simulateTimeToThreshold } from "./uncertainty";
+import { simulateTimeToThreshold, simulateTimeToThresholdFromForecast } from "./uncertainty";
 import type { DoseEstimate, DoseEstimateInput, Interval, MinuteSample } from "./types";
 
 /**
@@ -95,16 +95,32 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
   const currentDoseRateSEDPerMinute = estimateCurrentDoseRate(minuteSeries);
 
   // 6. Calibrated forward-looking time-to-threshold via Monte Carlo.
-  const timeToThreshold = simulateTimeToThreshold({
+  // Walk the forecast forward (up to 12 h) rather than holding today's rate constant.
+  const horizonEnd = new Date(Math.min(now.getTime() + 12 * 3600_000, hourlySamples.reduce((m, s) => Math.max(m, s.time.getTime()), 0)));
+  const futureMinutes = horizonEnd.getTime() > now.getTime() ? interpolateHourlyToMinutes(hourlySamples, latitude, longitude, now, horizonEnd) : [];
+  const futurePersonal = futureMinutes.map(({ time, uvIndex }) => ({
+    time,
+    uvIndex: uvIndex * per.nominal * protectionMultiplier(activeSPFAtTime(sunscreenApplications, time)),
+  }));
+  const cumulativeFutureSED: number[] = [];
+  let running = 0;
+  for (let i = 1; i < futurePersonal.length; i++) {
+    running += integrateErythemalDoseSED([futurePersonal[i - 1]!, futurePersonal[i]!]);
+    cumulativeFutureSED.push(running);
+  }
+  const common = {
     currentDoseSED: cumulativeDoseSED.nominal,
-    doseRateSEDPerMinute: currentDoseRateSEDPerMinute,
-    medRangeSED: [medRange.lowSED, medRange.highSED],
-    perRange: [per.low, per.high],
+    medRangeSED: [medRange.lowSED, medRange.highSED] as [number, number],
+    perRange: [per.low, per.high] as [number, number],
     perNominal: per.nominal,
     forecastRelativeErrorSD,
     samples: monteCarloSamples,
     seed: monteCarloSeed,
-  });
+  };
+  const timeToThreshold =
+    cumulativeFutureSED.length > 0
+      ? simulateTimeToThresholdFromForecast({ ...common, cumulativeFutureSED })
+      : simulateTimeToThreshold({ ...common, doseRateSEDPerMinute: currentDoseRateSEDPerMinute });
 
   // 7. Empirical CMF per hourly sample, for the methods/history views.
   const cloudModificationFactors = hourlySamples

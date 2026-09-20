@@ -103,3 +103,66 @@ export function simulateTimeToThreshold(inputs: TimeToThresholdInputs): TimeToTh
     p90Minutes: percentile(0.9),
   };
 }
+
+export interface ForecastTimeToThresholdInputs {
+  /** Dose already accumulated this session, SED (nominal). */
+  currentDoseSED: number;
+  /** Cumulative future dose (SED, nominal PER) at each minute after `now`; cumulativeFutureSED[i] is the dose accrued i+1 minutes from now. Non-decreasing. */
+  cumulativeFutureSED: number[];
+  medRangeSED: [number, number];
+  perRange: [number, number];
+  perNominal: number;
+  forecastRelativeErrorSD: number;
+  samples?: number;
+  seed?: number;
+}
+
+/**
+ * Like simulateTimeToThreshold, but walks the forecast trajectory forward
+ * instead of assuming the current dose rate stays constant. For each Monte
+ * Carlo draw the total dose (past + future) is scaled by the sampled PER and
+ * forecast-error multipliers, and the answer is the first minute at which it
+ * reaches the sampled MED. Returns Infinity if the threshold is not reached
+ * within the forecast horizon.
+ */
+export function simulateTimeToThresholdFromForecast(inputs: ForecastTimeToThresholdInputs): TimeToThresholdEstimate {
+  const {
+    currentDoseSED,
+    cumulativeFutureSED,
+    medRangeSED: [medLow, medHigh],
+    perRange: [perLow, perHigh],
+    perNominal,
+    forecastRelativeErrorSD,
+    samples = DEFAULT_MONTE_CARLO_SAMPLES,
+    seed = DEFAULT_MONTE_CARLO_SEED,
+  } = inputs;
+
+  const rng = mulberry32(seed);
+  const results: number[] = [];
+
+  for (let i = 0; i < samples; i++) {
+    const med = sampleUniform(rng, medLow, medHigh);
+    const per = sampleUniform(rng, perLow, perHigh);
+    const scale = (perNominal > 0 ? per / perNominal : 1) * Math.max(0.1, 1 + sampleNormal(rng, 0, forecastRelativeErrorSD));
+
+    // Need scale * (current + future[k]) >= med  =>  future[k] >= med/scale - current.
+    const neededFuture = med / scale - currentDoseSED;
+    if (neededFuture <= 0) {
+      results.push(0);
+      continue;
+    }
+    // Binary search for the first index with cumulativeFutureSED[idx] >= neededFuture.
+    let lo = 0;
+    let hi = cumulativeFutureSED.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cumulativeFutureSED[mid]! >= neededFuture) hi = mid;
+      else lo = mid + 1;
+    }
+    results.push(lo < cumulativeFutureSED.length ? lo + 1 : Number.POSITIVE_INFINITY);
+  }
+
+  results.sort((a, b) => a - b);
+  const percentile = (p: number) => results[Math.min(results.length - 1, Math.floor(p * results.length))]!;
+  return { p10Minutes: percentile(0.1), p50Minutes: percentile(0.5), p90Minutes: percentile(0.9) };
+}

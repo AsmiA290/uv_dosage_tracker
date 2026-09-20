@@ -52,3 +52,38 @@ describe("simulateTimeToThreshold", () => {
     expect(result.p50Minutes).toBe(Number.POSITIVE_INFINITY);
   });
 });
+
+import { simulateTimeToThresholdFromForecast } from "../uncertainty";
+
+describe("simulateTimeToThresholdFromForecast", () => {
+  const ramp = Array.from({ length: 600 }, (_, i) => (i + 1) * 0.02); // 0.02 SED/min constant
+  const base = {
+    currentDoseSED: 0,
+    cumulativeFutureSED: ramp,
+    medRangeSED: [2.5, 5.0] as [number, number],
+    perRange: [0.4, 0.6] as [number, number],
+    perNominal: 0.5,
+    forecastRelativeErrorSD: 0.15,
+    samples: 1000,
+  };
+
+  it("matches the constant-rate answer for a constant-rate forecast", () => {
+    const r = simulateTimeToThresholdFromForecast(base);
+    expect(r.p50Minutes).toBeGreaterThan(120);
+    expect(r.p50Minutes).toBeLessThan(230);
+  });
+
+  it("gives a shorter time when the forecast dose rate is higher", () => {
+    const fast = simulateTimeToThresholdFromForecast({ ...base, cumulativeFutureSED: ramp.map((v) => v * 2) });
+    expect(fast.p50Minutes).toBeLessThan(simulateTimeToThresholdFromForecast(base).p50Minutes);
+  });
+
+  it("returns Infinity when the threshold is never reached in the horizon", () => {
+    const flat = simulateTimeToThresholdFromForecast({ ...base, cumulativeFutureSED: ramp.map((v) => v * 0.01) });
+    expect(flat.p90Minutes).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("returns 0 when already past the threshold", () => {
+    expect(simulateTimeToThresholdFromForecast({ ...base, currentDoseSED: 10 }).p50Minutes).toBe(0);
+  });
+});
