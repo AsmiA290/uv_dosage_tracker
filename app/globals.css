@@ -34,22 +34,52 @@
   --radius: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #111114;
-    --surface: #1b1b1f;
-    --foreground: #f5f5f4;
-    --muted-foreground: #a1a1aa;
-    --border: #303036;
-  }
-}
-
+/*
+ * This app is read outdoors, in direct sunlight — light-first is a hard
+ * requirement, not a default that should flip with the OS/browser theme.
+ * A muted dark variant is kept here for optional evening use, but it only
+ * activates when explicitly opted into via [data-theme="dark"], never from
+ * prefers-color-scheme. Do not reintroduce an automatic dark switch.
+ */
 :root[data-theme="dark"] {
   --background: #111114;
   --surface: #1b1b1f;
   --foreground: #f5f5f4;
   --muted-foreground: #a1a1aa;
   --border: #303036;
+}
+
+/*
+ * Bridge our design-system tokens above into shadcn/ui's semantic Tailwind
+ * color names, so generated primitives (Button, Card, Badge, Tabs, ...)
+ * read from the same palette instead of an invented parallel one.
+ */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: color-mix(in srgb, var(--foreground) 6%, var(--surface));
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--risk-high);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 * {
