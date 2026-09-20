@@ -103,7 +103,7 @@ function SessionRow({ session }: { session: HistoricalSession }) {
   const durationMin = Math.round((end.getTime() - start.getTime()) / 60_000);
 
   return (
-    <li className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+    <li className="glass-panel-solid rounded-[var(--radius)]">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -186,7 +186,7 @@ export default function HistoryPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-[var(--muted-foreground)]">This week</h2>
-        <div className="h-56 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3">
+        <div className="glass-panel-solid h-56 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weekData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -223,7 +223,7 @@ export default function HistoryPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-[var(--muted-foreground)]">Cumulative trend</h2>
-        <div className="h-48 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3">
+        <div className="glass-panel-solid h-48 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />

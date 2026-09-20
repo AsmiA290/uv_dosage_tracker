@@ -26,7 +26,7 @@ export function StatTile({ label, value, unit, riskLevel, className }: StatTileP
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5",
+        "glass-panel flex flex-col gap-1.5 rounded-[calc(var(--radius)+4px)] p-5",
         riskLevel && `border-l-4 ${RISK_BORDER[riskLevel]}`,
         className
       )}

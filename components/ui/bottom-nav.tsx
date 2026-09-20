@@ -22,10 +22,10 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-sm"
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto flex max-w-md items-stretch justify-around">
+      <div className="glass-pill flex items-stretch justify-around rounded-full px-1.5 py-1">
         {DESTINATIONS.map(({ href, label, icon: Icon }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
@@ -34,8 +34,10 @@ export function BottomNav() {
               href={href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex min-h-16 flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
-                isActive ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"
+                "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-full py-2 text-xs font-medium transition-colors",
+                isActive
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                  : "text-[var(--muted-foreground)]"
               )}
             >
               <Icon

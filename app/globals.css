@@ -93,6 +93,13 @@ body {
 }
 
 body {
+  /* Soft, permanently-light "sky" wash behind every screen so the glass
+     panels below have something to float over even off the Now page. */
+  background:
+    radial-gradient(120% 60% at 12% -10%, color-mix(in srgb, #7dd3fc 20%, transparent) 0%, transparent 60%),
+    radial-gradient(100% 50% at 100% 0%, color-mix(in srgb, #fde68a 16%, transparent) 0%, transparent 55%),
+    var(--background);
+  background-attachment: fixed;
   font-feature-settings: "tnum" 1;
   font-variant-numeric: tabular-nums;
 }
@@ -100,4 +107,69 @@ body {
 .hero-number {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/*
+ * Liquid-glass surfaces: translucent, blurred, saturated panels with a
+ * bright top-edge highlight, standing in for the app's former flat
+ * "border + solid surface" cards. `-strong`/`-solid` variants trade some
+ * translucency for legibility where a lot of small text sits on the panel
+ * (form controls, dense lists) — never drop below these opacities, since
+ * this app is read outdoors in direct sun.
+ */
+.glass-panel {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid color-mix(in srgb, white 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 70%, transparent),
+    0 8px 30px -10px rgba(15, 23, 42, 0.2);
+}
+
+.glass-panel-solid {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px -14px rgba(15, 23, 42, 0.14);
+}
+
+.glass-pill {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid color-mix(in srgb, white 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 80%, transparent),
+    0 10px 30px -10px rgba(15, 23, 42, 0.28);
+}
+
+/* Animated weather-sky hero (Now page) ------------------------------- */
+@keyframes drift-cloud {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+
+@keyframes sun-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-cloud,
+  .sky-sun {
+    animation: none !important;
+  }
 }

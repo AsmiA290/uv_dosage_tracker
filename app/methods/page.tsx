@@ -35,7 +35,7 @@ const SECTIONS: { title: string; keys: string[] }[] = [
 
 function CitationCard({ citation }: { citation: Citation }) {
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5">
+    <div className="glass-panel-solid flex flex-col gap-2 rounded-[var(--radius)] p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm leading-relaxed text-[var(--foreground)]">{citation.claim}</p>
         <span
@@ -109,7 +109,7 @@ export default function MethodsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
           EPA UV Index legend
         </h2>
-        <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="glass-panel-solid flex flex-col gap-2 rounded-[var(--radius)] p-4">
           {EPA_LEGEND.map((item) => (
             <div key={item.label} className="flex items-center gap-3 text-sm">
               <span
@@ -127,7 +127,7 @@ export default function MethodsPage() {
         </p>
       </section>
 
-      <footer className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 text-center">
+      <footer className="glass-panel-solid rounded-[var(--radius)] p-5 text-center">
         <p className="text-base font-semibold text-[var(--foreground)]">
           Educational tool. Not a medical device.
         </p>

@@ -235,7 +235,7 @@ export default function SessionPage() {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-8 pb-28">
         <h1 className="text-lg font-semibold">Session summary</h1>
-        <div className="flex flex-col gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="glass-panel-solid flex flex-col gap-4 rounded-[calc(var(--radius)+6px)] p-6">
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
             <span>Duration</span>
             <span className="hero-number font-semibold text-[var(--foreground)]">{durationMin} min</span>
@@ -274,7 +274,7 @@ export default function SessionPage() {
             onChange={(e) => setEnded({ ...ended, note: e.target.value })}
             placeholder="e.g. practice moved indoors at 3:40"
             rows={3}
-            className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="glass-panel-solid rounded-[var(--radius)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           />
         </label>
 
@@ -370,7 +370,7 @@ export default function SessionPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
+        <div className="glass-panel-solid flex items-center justify-between rounded-[var(--radius)] p-4 text-sm">
           <span className="text-[var(--muted-foreground)]">Sunscreen</span>
           <span className="font-medium">
             {currentSpf ? `Effective SPF ~${currentSpf.toFixed(0)}` : "None logged"}
@@ -378,7 +378,7 @@ export default function SessionPage() {
         </div>
 
         {addingSunscreen ? (
-          <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-4">
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium">SPF</span>
               <input
@@ -387,7 +387,7 @@ export default function SessionPage() {
                 value={addSpf}
                 onChange={(e) => setAddSpf(e.target.value)}
                 placeholder="30"
-                className="h-10 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="glass-panel-solid h-10 rounded-[var(--radius)] px-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               />
             </label>
             <fieldset className="flex flex-col gap-1 text-sm">
@@ -435,7 +435,7 @@ export default function SessionPage() {
             onChange={(e) => setActive({ ...active, note: e.target.value })}
             placeholder="e.g. practice moved indoors at 3:40"
             rows={2}
-            className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="glass-panel-solid rounded-[var(--radius)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           />
         </label>
       </main>
@@ -464,7 +464,7 @@ export default function SessionPage() {
         <select
           value={setup.fitzpatrickType}
           onChange={(e) => setSetup({ ...setup, fitzpatrickType: e.target.value as FitzpatrickType })}
-          className="h-11 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           {Object.entries(FITZPATRICK_LABELS).map(([key, label]) => (
             <option key={key} value={key}>
@@ -479,7 +479,7 @@ export default function SessionPage() {
         <select
           value={setup.surface}
           onChange={(e) => setSetup({ ...setup, surface: e.target.value as SurfaceType })}
-          className="h-11 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           {SURFACE_OPTIONS.map(([key, { label }]) => (
             <option key={key} value={key}>
