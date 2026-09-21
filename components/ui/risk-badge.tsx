@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils"
 import type { RiskLevel } from "./stat-tile"
 
 const RISK_STYLES: Record<RiskLevel, string> = {
-  low: "bg-[var(--risk-low)]/15 text-[var(--risk-low)]",
-  medium: "bg-[var(--risk-medium)]/15 text-[var(--risk-medium)]",
-  high: "bg-[var(--risk-high)]/15 text-[var(--risk-high)]",
+  low: "risk-pill-low text-[var(--risk-low)]",
+  medium: "risk-pill-medium text-[var(--risk-medium)]",
+  high: "risk-pill-high text-[var(--risk-high)]",
 }
 
 interface RiskBadgeProps {

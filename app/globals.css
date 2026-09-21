@@ -118,31 +118,69 @@ body {
  * this app is read outdoors in direct sun.
  */
 .glass-panel {
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid color-mix(in srgb, white 55%, transparent);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, white 70%, transparent),
-    0 8px 30px -10px rgba(15, 23, 42, 0.2);
-}
-
-.glass-panel-solid {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 24px -14px rgba(15, 23, 42, 0.14);
-}
-
-.glass-pill {
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 40%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--surface) 62%, transparent);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid color-mix(in srgb, white 60%, transparent);
   box-shadow:
     inset 0 1px 0 0 color-mix(in srgb, white 80%, transparent),
-    0 10px 30px -10px rgba(15, 23, 42, 0.28);
+    inset 0 -1px 0 0 color-mix(in srgb, black 6%, transparent),
+    0 8px 30px -10px rgba(15, 23, 42, 0.22);
+}
+
+.glass-panel-solid {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 30%, transparent) 0%, transparent 30%),
+    color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in srgb, white 45%, var(--border));
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 65%, transparent),
+    0 8px 24px -14px rgba(15, 23, 42, 0.16);
+}
+
+.glass-pill {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 45%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid color-mix(in srgb, white 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 85%, transparent),
+    inset 0 -1px 0 0 color-mix(in srgb, black 5%, transparent),
+    0 10px 30px -10px rgba(15, 23, 42, 0.3);
+}
+
+/*
+ * Risk pills (RiskBadge): always sit on a light, blurred surface floor
+ * first, then tint faintly with the risk color — so identification color
+ * never has to double as the only source of contrast. This keeps the
+ * label legible over anything behind it, including the dark night/dusk
+ * WeatherSky backdrop on the Now page.
+ */
+.risk-pill {
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid color-mix(in srgb, white 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 75%, transparent),
+    0 6px 20px -10px rgba(15, 23, 42, 0.28);
+}
+
+.risk-pill-low {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-low) 16%);
+}
+
+.risk-pill-medium {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-medium) 16%);
+}
+
+.risk-pill-high {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-high) 16%);
 }
 
 /* Animated weather-sky hero (Now page) ------------------------------- */

@@ -83,10 +83,10 @@ export default async function NowPage() {
       />
 
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-8">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-[var(--foreground)]">UV Dose Tracker</h1>
-            <p className="flex items-center gap-1 text-xs font-medium text-[var(--foreground)]/75">
+        <header className="flex items-center justify-between gap-3">
+          <div className="glass-pill flex flex-col gap-0.5 rounded-2xl px-4 py-2">
+            <h1 className="text-base font-semibold leading-tight text-[var(--foreground)]">UV Dose Tracker</h1>
+            <p className="flex items-center gap-1 text-xs font-medium leading-tight text-[var(--foreground)]/75">
               <MapPin className="size-3.5" aria-hidden="true" />
               {LOCATION_LABEL}
             </p>
@@ -94,7 +94,9 @@ export default async function NowPage() {
           <RiskBadge level={risk} label={riskLabel} />
         </header>
 
-        <p className="text-sm font-medium text-[var(--foreground)]/75">{FITZPATRICK_LABELS[fitzpatrickType]}</p>
+        <p className="glass-pill inline-flex w-fit rounded-full px-3 py-1.5 text-sm font-medium text-[var(--foreground)]/85">
+          {FITZPATRICK_LABELS[fitzpatrickType]}
+        </p>
 
         <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] px-6 py-8">
           <RadialGaugeShell title="Remaining budget" fraction={budgetFraction} riskLevel={risk} size={220}>
@@ -143,7 +145,7 @@ export default async function NowPage() {
           />
         </div>
 
-        <p className="text-center text-xs text-[var(--foreground)]/65">
+        <p className="glass-pill rounded-2xl px-4 py-3 text-center text-xs text-[var(--foreground)]/75">
           Educational estimate only — not a medical device and not a diagnosis. See Methods for every
           parameter and its source.
         </p>
