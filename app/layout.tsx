@@ -11,7 +11,7 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "UV Dose Tracker",
   description:
-    "Personal UV dose tracking for outdoor workers and athletes in central Illinois — a radiation badge for sunlight. Educational use only; not a diagnostic tool.",
+    "Personal UV dose tracking for outdoor workers and athletes in central Illinois: a radiation badge for sunlight. Educational use only; not a diagnostic tool.",
   manifest: "/manifest.json",
 };
 

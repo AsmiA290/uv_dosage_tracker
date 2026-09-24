@@ -139,7 +139,7 @@ function SessionRow({ session }: { session: HistoricalSession }) {
             <span>{session.fitzpatrickType}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">MED threshold</span>
+            <span className="text-[var(--muted-foreground)]">Burn threshold (MED)</span>
             <span className="hero-number">{session.medThresholdSED.nominal.toFixed(1)} SED</span>
           </div>
           {session.note && (
@@ -173,7 +173,7 @@ export default function HistoryPage() {
         <p className="text-sm text-[var(--muted-foreground)]">
           Start and save your first session to see your weekly UV load here.
         </p>
-        <Button asChild size="session" className="bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90">
+        <Button asChild variant="glass" size="session" className="glass-cta">
           <Link href="/session">Start a session</Link>
         </Button>
       </main>

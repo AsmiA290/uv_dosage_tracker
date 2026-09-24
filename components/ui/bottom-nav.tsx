@@ -19,6 +19,11 @@ const DESTINATIONS = [
 export function BottomNav() {
   const pathname = usePathname()
 
+  // No meaningful nav destination while signed out or mid-onboarding.
+  if (pathname.startsWith("/auth") || pathname.startsWith("/onboarding")) {
+    return null
+  }
+
   return (
     <nav
       aria-label="Primary"

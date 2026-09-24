@@ -4,20 +4,20 @@ import type React from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Sun } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 
-// Only the credential/existence signal is genericized — naming it would confirm
-// whether an email is registered. Errors the user can act on are passed through.
+// Only the credential/existence signal is genericized, since naming it would
+// confirm whether an email is registered. Errors the user can act on are
+// passed through.
 function loginErrorMessage(error: unknown): string {
   const { code, status } = (error ?? {}) as { code?: string; status?: number }
 
   if (code === "email_not_confirmed") {
-    return "Please confirm your email address — check your inbox for the link."
+    return "Please confirm your email address. Check your inbox for the link."
   }
   if (code === "over_request_rate_limit" || status === 429) {
     return "Too many attempts. Please wait a moment and try again."
@@ -31,6 +31,7 @@ function loginErrorMessage(error: unknown): string {
 function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -39,7 +40,7 @@ function LoginForm() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
+    const supabase = createClient({ rememberMe })
     setIsLoading(true)
     setError(null)
 
@@ -57,51 +58,78 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Sign in</CardTitle>
-            <CardDescription>Track your UV exposure and dose budget</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin}>
-              <div className="flex flex-col gap-5">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign in"}
-                </Button>
-              </div>
-              <div className="mt-4 text-center text-sm text-muted-foreground">
-                Don&apos;t have an account?{" "}
-                <Link href="/auth/sign-up" className="font-medium text-foreground underline underline-offset-4">
-                  Sign up
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-hidden p-6">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(120% 60% at 15% -10%, color-mix(in srgb, #7dd3fc 30%, transparent) 0%, transparent 60%), radial-gradient(100% 55% at 100% 0%, color-mix(in srgb, #fde68a 24%, transparent) 0%, transparent 55%)",
+        }}
+      />
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="glass-panel flex flex-col gap-6 rounded-[calc(var(--radius)+10px)] p-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="glass-pill flex size-12 items-center justify-center rounded-full">
+              <Sun className="size-6 text-[var(--accent)]" aria-hidden="true" />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold">Sign in</h1>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Track your personal UV dose and sunburn budget
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">Email</Label>
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Password</Label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              />
+            </div>
+
+            <label className="flex items-center gap-2.5 text-sm text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="size-4 rounded border-[var(--border)] accent-[var(--accent)]"
+              />
+              Remember me on this device
+            </label>
+
+            {error && <p className="text-sm text-[var(--risk-high)]">{error}</p>}
+
+            <Button type="submit" variant="glass" size="session" className="glass-cta" disabled={isLoading}>
+              {isLoading ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-[var(--muted-foreground)]">
+            Don&apos;t have an account?{" "}
+            <Link href="/auth/sign-up" className="font-medium text-[var(--foreground)] underline underline-offset-4">
+              Sign up
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

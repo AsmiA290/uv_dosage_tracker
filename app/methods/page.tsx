@@ -1,6 +1,9 @@
+import Link from "next/link";
+import { UserCog } from "lucide-react";
 import { CITATIONS, type Citation } from "@/lib/dose/citations";
 import { cn } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
+import { Button } from "@/components/ui/button";
 
 const EPA_LEGEND = [
   { label: "Low", range: "0–2", color: "var(--epa-low)" },
@@ -15,8 +18,8 @@ const PIPELINE_STEPS = [
   "Erythemal irradiance",
   "Personal exposure ratio",
   "Sunscreen attenuation",
-  "Cumulative SED",
-  "Compared to your MED range",
+  "Cumulative dose (SED, Standard Erythema Dose)",
+  "Compared to your burn threshold (MED, Minimal Erythema Dose) range",
 ] as const;
 
 // citations.ts has no explicit category field, so grouping is inferred here
@@ -63,7 +66,15 @@ export default function MethodsPage() {
       <header className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-lg font-semibold">Methods & Citations</h1>
-          <SignOutButton />
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/profile" className="gap-1.5">
+                <UserCog className="size-3.5" aria-hidden="true" />
+                Profile
+              </Link>
+            </Button>
+            <SignOutButton />
+          </div>
         </div>
         <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
           This app estimates your personal cumulative UV dose from forecasted UV Index, your skin type, and
@@ -123,7 +134,7 @@ export default function MethodsPage() {
           ))}
         </div>
         <p className="text-xs italic text-[var(--muted-foreground)]">
-          For reference only — this app&apos;s own risk indicators use a simpler scale.
+          For reference only: this app&apos;s own risk indicators use a simpler scale.
         </p>
       </section>
 

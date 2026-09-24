@@ -1,19 +1,20 @@
+import { redirect } from "next/navigation";
 import { AlertTriangle, MapPin } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
 import { fetchOpenMeteoForecast, ForecastFetchError } from "@/lib/weather/open-meteo";
-import type { FitzpatrickType } from "@/lib/dose/types";
+import { fetchProfileServer } from "@/lib/supabase/profile-server";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile, type RiskLevel } from "@/components/ui/stat-tile";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { WeatherSky } from "@/components/weather-sky";
 
-// Springfield, IL — district anchor city (IL-13). Replace with the user's
-// own geolocation once device location wiring is built out.
-const DEFAULT_LAT = 39.78;
-const DEFAULT_LON = -89.65;
-const LOCATION_LABEL = "Springfield, IL";
+// Springfield, IL is only a fallback for the rare case a profile has no
+// saved location yet. Normal use always comes from the user's own profile.
+const FALLBACK_LAT = 39.78;
+const FALLBACK_LON = -89.65;
+const FALLBACK_LABEL = "Springfield, IL";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,23 @@ function riskFromFraction(fraction: number): RiskLevel {
 }
 
 export default async function NowPage() {
+  const profile = await fetchProfileServer();
+  if (!profile) redirect("/auth/login");
+  if (!profile.onboardedAt) redirect("/onboarding");
+
+  const fitzpatrickType = profile.fitzpatrickType ?? "II";
+  const latitude = profile.homeLat ?? FALLBACK_LAT;
+  const longitude = profile.homeLon ?? FALLBACK_LON;
+  const locationLabel = profile.homeLabel ?? FALLBACK_LABEL;
+  const surface = profile.defaultSurface ?? "grass";
+  const posture = profile.defaultPosture ?? "standing";
+
   const sessionStart = new Date(Date.now() - 30 * 60_000);
   const now = new Date();
-  const fitzpatrickType: FitzpatrickType = "II";
 
   let hourlySamples;
   try {
-    hourlySamples = await fetchOpenMeteoForecast({ latitude: DEFAULT_LAT, longitude: DEFAULT_LON });
+    hourlySamples = await fetchOpenMeteoForecast({ latitude, longitude });
   } catch (err) {
     const message = err instanceof ForecastFetchError ? err.message : "Unexpected error.";
     return (
@@ -41,7 +52,7 @@ export default async function NowPage() {
           <p className="text-lg font-semibold">Forecast unavailable</p>
           <p className="text-sm text-[var(--muted-foreground)]">{message}</p>
           <p className="text-xs text-[var(--muted-foreground)]">
-            Showing no cached estimate yet — try again shortly.
+            Showing no cached estimate yet. Try again shortly.
           </p>
         </div>
       </main>
@@ -50,16 +61,16 @@ export default async function NowPage() {
 
   const estimate = computeDoseEstimate({
     fitzpatrickType,
-    latitude: DEFAULT_LAT,
-    longitude: DEFAULT_LON,
-    surface: "grass",
-    posture: "standing",
+    latitude,
+    longitude,
+    surface,
+    posture,
     hourlySamples,
     sessionStart,
     now,
   });
 
-  // Nearest hourly sample to "now" — drives the animated sky's sun/cloud
+  // Nearest hourly sample to "now" drives the animated sky's sun/cloud
   // state so it reflects the actual forecast, not just the clock.
   const currentSample =
     hourlySamples.find((s) => s.time.getTime() >= now.getTime()) ?? hourlySamples[hourlySamples.length - 1];
@@ -88,7 +99,7 @@ export default async function NowPage() {
             <h1 className="text-base font-semibold leading-tight text-[var(--foreground)]">UV Dose Tracker</h1>
             <p className="flex items-center gap-1 text-xs font-medium leading-tight text-[var(--foreground)]/75">
               <MapPin className="size-3.5" aria-hidden="true" />
-              {LOCATION_LABEL}
+              {locationLabel}
             </p>
           </div>
           <RiskBadge level={risk} label={riskLabel} />
@@ -118,7 +129,7 @@ export default async function NowPage() {
           <p className="hero-number mt-1 text-2xl font-semibold text-[var(--foreground)]">
             {hasTimeToThreshold
               ? `${Math.round(estimate.timeToThreshold.p10Minutes)}–${Math.round(estimate.timeToThreshold.p90Minutes)} min`
-              : "—"}
+              : "N/A"}
           </p>
         </div>
 
@@ -129,7 +140,7 @@ export default async function NowPage() {
             unit="SED/min"
           />
           <StatTile
-            label="MED threshold"
+            label="Burn threshold (MED)"
             value={estimate.medThresholdSED.nominal.toFixed(1)}
             unit="SED"
           />
@@ -146,8 +157,9 @@ export default async function NowPage() {
         </div>
 
         <p className="glass-pill rounded-2xl px-4 py-3 text-center text-xs text-[var(--foreground)]/75">
-          Educational estimate only — not a medical device and not a diagnosis. See Methods for every
-          parameter and its source.
+          SED (Standard Erythema Dose) measures cumulative UV exposure. MED (Minimal Erythema Dose) is your
+          estimated sunburn threshold. Educational estimate only, not a medical device and not a diagnosis. See
+          Methods for every parameter and its source.
         </p>
       </div>
     </main>

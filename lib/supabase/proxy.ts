@@ -1,7 +1,10 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PROTECTED_PATHS = ["/session", "/history"]
+// Every app route requires a signed-in user except the auth flow itself
+// (login, sign-up, callback, error) — this is a personal health-adjacent
+// tracker, so there's no meaningful "logged-out" experience to show.
+const PUBLIC_PATHS = ["/auth"]
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -33,7 +36,8 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (PROTECTED_PATHS.some((path) => request.nextUrl.pathname.startsWith(path)) && !user) {
+  const isPublic = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))
+  if (!isPublic && !user) {
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
     url.searchParams.set("next", request.nextUrl.pathname)

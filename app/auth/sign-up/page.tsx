@@ -4,9 +4,8 @@ import type React from "react"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Sun } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -20,7 +19,7 @@ function signUpErrorMessage(error: unknown): string {
     return "Please choose a stronger password."
   }
   if (code === "email_address_invalid") {
-    return "Please use a real email address — example and test domains are not supported."
+    return "Please use a real email address. Example and test domains are not supported."
   }
   if (code === "email_address_not_authorized") {
     return "We cannot send confirmation email to that address. Please use a different one."
@@ -73,61 +72,75 @@ export default function Page() {
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Create account</CardTitle>
-            <CardDescription>Start tracking your personal UV dose</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSignUp}>
-              <div className="flex flex-col gap-5">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="repeat-password">Repeat password</Label>
-                  <Input
-                    id="repeat-password"
-                    type="password"
-                    required
-                    value={repeatPassword}
-                    onChange={(e) => setRepeatPassword(e.target.value)}
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Sign up"}
-                </Button>
-              </div>
-              <div className="mt-4 text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/auth/login" className="font-medium text-foreground underline underline-offset-4">
-                  Sign in
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+    <div className="relative flex min-h-svh w-full items-center justify-center overflow-hidden p-6">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(120% 60% at 15% -10%, color-mix(in srgb, #7dd3fc 30%, transparent) 0%, transparent 60%), radial-gradient(100% 55% at 100% 0%, color-mix(in srgb, #fde68a 24%, transparent) 0%, transparent 55%)",
+        }}
+      />
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="glass-panel flex flex-col gap-6 rounded-[calc(var(--radius)+10px)] p-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="glass-pill flex size-12 items-center justify-center rounded-full">
+              <Sun className="size-6 text-[var(--accent)]" aria-hidden="true" />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold">Create account</h1>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">Start tracking your personal UV dose</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSignUp} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">Email</Label>
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Password</Label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="repeat-password">Repeat password</Label>
+              <input
+                id="repeat-password"
+                type="password"
+                required
+                value={repeatPassword}
+                onChange={(e) => setRepeatPassword(e.target.value)}
+                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              />
+            </div>
+            {error && <p className="text-sm text-[var(--risk-high)]">{error}</p>}
+            <Button type="submit" variant="glass" size="session" className="glass-cta" disabled={isLoading}>
+              {isLoading ? "Creating account…" : "Sign up"}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-[var(--muted-foreground)]">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-medium text-[var(--foreground)] underline underline-offset-4">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

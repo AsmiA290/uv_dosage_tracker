@@ -14,14 +14,17 @@ import type {
   SunscreenApplication,
   SurfaceType,
 } from "@/lib/dose/types";
-import { createDbSession, endDbSession, insertSunscreenApplicationRow } from "@/lib/supabase/sessions";
+import { createDbSession, endDbSession, fetchDbSessionHistory, insertSunscreenApplicationRow } from "@/lib/supabase/sessions";
+import { fetchProfile } from "@/lib/supabase/profile";
 import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import type { RiskLevel } from "@/components/ui/stat-tile";
 
-const DEFAULT_LAT = 39.78;
-const DEFAULT_LON = -89.65;
+// Springfield, IL is only a fallback for the rare case a profile has no
+// saved location yet. Normal use always comes from the user's own profile.
+const FALLBACK_LAT = 39.78;
+const FALLBACK_LON = -89.65;
 
 const THICKNESS_OPTIONS = [
   { label: "Light dab", value: 0.5 },
@@ -76,6 +79,7 @@ export default function SessionPage() {
     spf: "",
     thickness: 1.0,
   });
+  const [location, setLocation] = useState({ latitude: FALLBACK_LAT, longitude: FALLBACK_LON });
   const [addingSunscreen, setAddingSunscreen] = useState(false);
   const [addSpf, setAddSpf] = useState("");
   const [addThickness, setAddThickness] = useState(1.0);
@@ -84,14 +88,34 @@ export default function SessionPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Fetch once on mount — forecast is reused across the active session; the
-  // dose engine only needs samples spanning sessionStart..now, and Open-Meteo
-  // returns a multi-day hourly forecast that comfortably covers that.
+  // Load the user's saved profile defaults (skin type, home location, usual
+  // surface/posture) once on mount, so setup starts pre-filled instead of
+  // generic. The forecast fetch waits for the resolved location.
   useEffect(() => {
-    fetchOpenMeteoForecastClient(DEFAULT_LAT, DEFAULT_LON)
+    fetchProfile()
+      .then((profile) => {
+        if (!profile) return;
+        setSetup((prev) => ({
+          ...prev,
+          fitzpatrickType: profile.fitzpatrickType ?? prev.fitzpatrickType,
+          surface: profile.defaultSurface ?? prev.surface,
+          posture: profile.defaultPosture ?? prev.posture,
+        }));
+        if (profile.homeLat !== null && profile.homeLon !== null) {
+          setLocation({ latitude: profile.homeLat, longitude: profile.homeLon });
+        }
+      })
+      .catch((err) => console.error("[v0] Failed to load profile:", err));
+  }, []);
+
+  // Forecast is reused across the active session; the dose engine only
+  // needs samples spanning sessionStart..now, and Open-Meteo returns a
+  // multi-day hourly forecast that comfortably covers that.
+  useEffect(() => {
+    fetchOpenMeteoForecastClient(location.latitude, location.longitude)
       .then(setSamples)
       .catch((err) => setForecastError(err instanceof Error ? err.message : "Forecast unavailable."));
-  }, []);
+  }, [location.latitude, location.longitude]);
 
   // Live tick, at least once a minute, while a session is active.
   useEffect(() => {
@@ -101,26 +125,25 @@ export default function SessionPage() {
   }, [phase]);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem("uv-dose-tracker:sessions");
-      const list = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(list) && list.length > 0) {
-        const last = list[0];
-        const dose = last.cumulativeDoseSED?.nominal?.toFixed?.(1) ?? "—";
+    fetchDbSessionHistory()
+      .then((sessions) => {
+        const last = sessions[0];
+        if (!last) return;
+        const dose = last.cumulativeDoseSED.nominal.toFixed(1);
         const date = new Date(last.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
         setLastSavedSummary(`Last session: ${date} · ${dose} SED`);
-      }
-    } catch {
-      // ignore — continuity note is best-effort only
-    }
+      })
+      .catch(() => {
+        // ignore: this continuity note is best-effort only
+      });
   }, []);
 
   const estimate = useMemo<DoseEstimate | null>(() => {
     if (!samples || !active) return null;
     return computeDoseEstimate({
       fitzpatrickType: active.setup.fitzpatrickType,
-      latitude: DEFAULT_LAT,
-      longitude: DEFAULT_LON,
+      latitude: location.latitude,
+      longitude: location.longitude,
       surface: active.setup.surface,
       posture: active.setup.posture,
       hourlySamples: samples,
@@ -128,7 +151,7 @@ export default function SessionPage() {
       now,
       sunscreenApplications: active.applications,
     });
-  }, [samples, active, now]);
+  }, [samples, active, now, location.latitude, location.longitude]);
 
   const reapplyNeeded = useMemo(() => {
     if (!active || active.applications.length === 0) return false;
@@ -142,8 +165,8 @@ export default function SessionPage() {
     try {
       const sessionId = await createDbSession({
         startedAt,
-        latitude: DEFAULT_LAT,
-        longitude: DEFAULT_LON,
+        latitude: location.latitude,
+        longitude: location.longitude,
         surface: setup.surface,
         posture: setup.posture,
         fitzpatrickType: setup.fitzpatrickType,
@@ -289,8 +312,9 @@ export default function SessionPage() {
             Discard
           </Button>
           <Button
+            variant="glass"
             size="session"
-            className="flex-1 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
+            className="glass-cta flex-1"
             onClick={handleSave}
             disabled={isSaving}
           >
@@ -338,12 +362,13 @@ export default function SessionPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--risk-medium)]" aria-hidden="true" />
               <p className="text-sm text-[var(--foreground)]">
-                Reapply sunscreen — protection has dropped below half its labeled SPF.
+                Reapply sunscreen: protection has dropped below half its labeled SPF (Sun Protection Factor).
               </p>
             </div>
             <Button
+              variant="glass"
               size="sm"
-              className="shrink-0 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
+              className="glass-cta shrink-0"
               onClick={() => handleLogReapplication("dry")}
             >
               Log
@@ -364,7 +389,7 @@ export default function SessionPage() {
               <strong className="hero-number">
                 {hasTimeToThreshold
                   ? `${Math.round(estimate.timeToThreshold.p10Minutes)}–${Math.round(estimate.timeToThreshold.p90Minutes)} min`
-                  : "—"}
+                  : "N/A"}
               </strong>
             </p>
           </div>
@@ -414,7 +439,8 @@ export default function SessionPage() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
+                variant="glass"
+                className="glass-cta flex-1"
                 onClick={() => handleLogReapplication("dry")}
               >
                 Add
@@ -448,7 +474,7 @@ export default function SessionPage() {
       <div>
         <h1 className="text-lg font-semibold">Session</h1>
         <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Sessions are explicit start/stop — this app doesn&apos;t track location in the background, the same
+          Sessions are explicit start/stop: this app doesn&apos;t track location in the background, the same
           way a coach or crew lead already thinks about a shift or practice.
         </p>
       </div>
@@ -516,8 +542,8 @@ export default function SessionPage() {
           min={1}
           value={setup.spf}
           onChange={(e) => setSetup({ ...setup, spf: e.target.value })}
-          placeholder="SPF, e.g. 30"
-          className="h-11 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          placeholder="SPF (Sun Protection Factor), e.g. 30"
+          className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         />
         {setup.spf && (
           <div className="flex flex-wrap gap-2">
@@ -546,10 +572,11 @@ export default function SessionPage() {
       )}
 
       <Button
+        variant="glass"
         size="session"
         onClick={handleStart}
         disabled={!samples || isStarting}
-        className="mt-2 bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]/90"
+        className="glass-cta mt-2"
       >
         {isStarting ? "Starting…" : samples ? "Start Session" : "Loading forecast…"}
       </Button>
