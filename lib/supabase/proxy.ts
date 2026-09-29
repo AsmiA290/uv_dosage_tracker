@@ -1,11 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-// Every app route requires a signed-in user except the auth flow itself
-// (login, sign-up, callback, error) — this is a personal health-adjacent
-// tracker, so there's no meaningful "logged-out" experience to show.
-const PUBLIC_PATHS = ["/auth"]
-
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -36,12 +31,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isPublic = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))
-  if (!isPublic && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/login"
-    url.searchParams.set("next", request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+  // There's no login screen: every visitor gets a real, private Supabase
+  // account transparently via anonymous sign-in, so their data (profile,
+  // sessions, sunscreen log) still persists across visits on this device
+  // and is still protected by the same RLS policies as a "real" account.
+  // Anonymous sign-in sets the session cookie on `supabaseResponse`, which
+  // is why this call happens here instead of in a page/layout.
+  if (!user) {
+    await supabase.auth.signInAnonymously()
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

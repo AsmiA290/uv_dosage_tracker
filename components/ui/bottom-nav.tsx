@@ -19,8 +19,8 @@ const DESTINATIONS = [
 export function BottomNav() {
   const pathname = usePathname()
 
-  // No meaningful nav destination while signed out or mid-onboarding.
-  if (pathname.startsWith("/auth") || pathname.startsWith("/onboarding")) {
+  // No meaningful nav destination mid-onboarding.
+  if (pathname.startsWith("/onboarding")) {
     return null
   }
 

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { UserCog } from "lucide-react";
 import { CITATIONS, type Citation } from "@/lib/dose/citations";
 import { cn } from "@/lib/utils";
-import { SignOutButton } from "@/components/sign-out-button";
 import { Button } from "@/components/ui/button";
 
 const EPA_LEGEND = [
@@ -66,15 +65,12 @@ export default function MethodsPage() {
       <header className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-lg font-semibold">Methods & Citations</h1>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/profile" className="gap-1.5">
-                <UserCog className="size-3.5" aria-hidden="true" />
-                Profile
-              </Link>
-            </Button>
-            <SignOutButton />
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/profile" className="gap-1.5">
+              <UserCog className="size-3.5" aria-hidden="true" />
+              Profile
+            </Link>
+          </Button>
         </div>
         <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
           This app estimates your personal cumulative UV dose from forecasted UV Index, your skin type, and

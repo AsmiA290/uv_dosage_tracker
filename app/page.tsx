@@ -26,8 +26,7 @@ function riskFromFraction(fraction: number): RiskLevel {
 
 export default async function NowPage() {
   const profile = await fetchProfileServer();
-  if (!profile) redirect("/auth/login");
-  if (!profile.onboardedAt) redirect("/onboarding");
+  if (!profile || !profile.onboardedAt) redirect("/onboarding");
 
   const fitzpatrickType = profile.fitzpatrickType ?? "II";
   const latitude = profile.homeLat ?? FALLBACK_LAT;
