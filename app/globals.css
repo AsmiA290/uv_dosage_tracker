@@ -34,22 +34,52 @@
   --radius: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #111114;
-    --surface: #1b1b1f;
-    --foreground: #f5f5f4;
-    --muted-foreground: #a1a1aa;
-    --border: #303036;
-  }
-}
-
+/*
+ * This app is read outdoors, in direct sunlight — light-first is a hard
+ * requirement, not a default that should flip with the OS/browser theme.
+ * A muted dark variant is kept here for optional evening use, but it only
+ * activates when explicitly opted into via [data-theme="dark"], never from
+ * prefers-color-scheme. Do not reintroduce an automatic dark switch.
+ */
 :root[data-theme="dark"] {
   --background: #111114;
   --surface: #1b1b1f;
   --foreground: #f5f5f4;
   --muted-foreground: #a1a1aa;
   --border: #303036;
+}
+
+/*
+ * Bridge our design-system tokens above into shadcn/ui's semantic Tailwind
+ * color names, so generated primitives (Button, Card, Badge, Tabs, ...)
+ * read from the same palette instead of an invented parallel one.
+ */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: color-mix(in srgb, var(--foreground) 6%, var(--surface));
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--risk-high);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 * {
@@ -63,6 +93,13 @@ body {
 }
 
 body {
+  /* Soft, permanently-light "sky" wash behind every screen so the glass
+     panels below have something to float over even off the Now page. */
+  background:
+    radial-gradient(120% 60% at 12% -10%, color-mix(in srgb, #7dd3fc 20%, transparent) 0%, transparent 60%),
+    radial-gradient(100% 50% at 100% 0%, color-mix(in srgb, #fde68a 16%, transparent) 0%, transparent 55%),
+    var(--background);
+  background-attachment: fixed;
   font-feature-settings: "tnum" 1;
   font-variant-numeric: tabular-nums;
 }
@@ -70,4 +107,132 @@ body {
 .hero-number {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/*
+ * Liquid-glass surfaces: translucent, blurred, saturated panels with a
+ * bright top-edge highlight, standing in for the app's former flat
+ * "border + solid surface" cards. `-strong`/`-solid` variants trade some
+ * translucency for legibility where a lot of small text sits on the panel
+ * (form controls, dense lists) — never drop below these opacities, since
+ * this app is read outdoors in direct sun.
+ */
+.glass-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 40%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid color-mix(in srgb, white 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 80%, transparent),
+    inset 0 -1px 0 0 color-mix(in srgb, black 6%, transparent),
+    0 8px 30px -10px rgba(15, 23, 42, 0.22);
+}
+
+.glass-panel-solid {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 30%, transparent) 0%, transparent 30%),
+    color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in srgb, white 45%, var(--border));
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 65%, transparent),
+    0 8px 24px -14px rgba(15, 23, 42, 0.16);
+}
+
+.glass-pill {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 45%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid color-mix(in srgb, white 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 85%, transparent),
+    inset 0 -1px 0 0 color-mix(in srgb, black 5%, transparent),
+    0 10px 30px -10px rgba(15, 23, 42, 0.3);
+}
+
+/*
+ * Accent-tinted liquid glass, for the single primary action on a screen
+ * (Start Session, Save, Sign in). Same blurred/translucent language as
+ * .glass-panel-solid above, just tinted with --accent instead of neutral,
+ * so CTAs read as "glass" too instead of falling back to a flat fill.
+ */
+.glass-cta {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 35%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--accent) 88%, var(--surface) 12%);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in srgb, white 40%, var(--accent));
+  color: var(--accent-foreground);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 55%, transparent),
+    0 10px 26px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.glass-cta:hover {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, white 35%, transparent) 0%, transparent 35%),
+    color-mix(in srgb, var(--accent) 97%, var(--surface) 3%);
+}
+
+/*
+ * Risk pills (RiskBadge): always sit on a light, blurred surface floor
+ * first, then tint faintly with the risk color — so identification color
+ * never has to double as the only source of contrast. This keeps the
+ * label legible over anything behind it, including the dark night/dusk
+ * WeatherSky backdrop on the Now page.
+ */
+.risk-pill {
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid color-mix(in srgb, white 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, white 75%, transparent),
+    0 6px 20px -10px rgba(15, 23, 42, 0.28);
+}
+
+.risk-pill-low {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-low) 16%);
+}
+
+.risk-pill-medium {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-medium) 16%);
+}
+
+.risk-pill-high {
+  background: color-mix(in srgb, var(--surface) 75%, var(--risk-high) 16%);
+}
+
+/* Animated weather-sky hero (Now page) ------------------------------- */
+@keyframes drift-cloud {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+
+@keyframes sun-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-cloud,
+  .sky-sun {
+    animation: none !important;
+  }
 }
