@@ -28,7 +28,7 @@ export const CITATIONS: Record<string, Citation> = {
     key: "uviDefinition",
     claim: "1 UV Index unit = 25 mW/m² of CIE-erythema-weighted irradiance.",
     source:
-      "World Health Organization, WMO, UNEP, ICNIRP — Global Solar UV Index: A Practical Guide (2002); " +
+      "World Health Organization, WMO, UNEP, ICNIRP: Global Solar UV Index: A Practical Guide (2002); " +
       "CIE S 007/E-1998, Erythema Reference Action Spectrum and Standard Erythema Dose.",
     confirmed: true,
   },
@@ -48,7 +48,8 @@ export const CITATIONS: Record<string, Citation> = {
   medRangesByType: {
     key: "medRangesByType",
     claim:
-      "Approximate MED ranges by Fitzpatrick type (SED): I 1.5-3.4, II 2.5-5.0, III 3.0-6.0, IV 4.5-8.0, V 6.0-10.0, VI 8.0-15.0.",
+      "Approximate Minimal Erythema Dose (MED) ranges by Fitzpatrick type, in Standard Erythema Dose (SED) units: " +
+      "I 1.5-3.4, II 2.5-5.0, III 3.0-6.0, IV 4.5-8.0, V 6.0-10.0, VI 8.0-15.0.",
     source:
       "Synthesized from Fitzpatrick (1988) skin-type definitions and commonly cited photobiology MED summaries " +
       "(e.g. Diffey, B.L., 'Sources and measurement of ultraviolet radiation,' Methods, 2002;28(1):4-13; " +
@@ -87,15 +88,15 @@ export const CITATIONS: Record<string, Citation> = {
   personalExposureRatio: {
     key: "personalExposureRatio",
     claim:
-      "Personal exposure ratio (PER) — the fraction of ambient horizontal-plane erythemal UV actually received " +
-      "by facial/neck/shoulder skin — is roughly 0.4-0.6 for a standing adult, varying with solar elevation and posture.",
+      "Personal exposure ratio (PER), the fraction of ambient horizontal-plane erythemal UV actually received " +
+      "by facial/neck/shoulder skin, is roughly 0.4-0.6 for a standing adult, varying with solar elevation and posture.",
     source:
       "Vernez, D., Milon, A., Vuilleumier, L., et al. work on anatomical/personal UV exposure ratios; " +
       "Serrano, M-A., Cañada, J., Moreno, J.C. 'Erythemal ultraviolet exposure of cyclists in Valencia, Spain.' " +
       "Photochemistry and Photobiology, 2010. Both report body-site exposure ratios well below 1.0 relative to " +
       "a horizontal ambient reference.",
     confirmed: false,
-    note: "This is the correction most consumer UV apps skip entirely — flagging it, with a cited range, is itself part of the technical-challenge answer.",
+    note: "This is the correction most consumer UV apps skip entirely: flagging it, with a cited range, is itself part of the technical-challenge answer.",
   },
   sunscreenApplicationThickness: {
     key: "sunscreenApplicationThickness",
@@ -120,7 +121,7 @@ export const CITATIONS: Record<string, Citation> = {
     claim: "Open-Meteo UV index forecasts carry roughly 10-20% relative error versus ground observations at short lead times, growing at longer lead times.",
     source: "Open-Meteo model documentation and general numerical weather prediction UV-forecast validation literature (e.g. Lindfors, A.V. et al., validation of UV forecast products).",
     confirmed: false,
-    note: "The app's cross-validation notebook (analysis/cross_validate_epa.py) produces a site-specific agreement plot against the EPA Envirofacts UV API — use that measured error instead of this literature default once you have it.",
+    note: "The app's cross-validation notebook (analysis/cross_validate_epa.py) produces a site-specific agreement plot against the EPA Envirofacts UV API: use that measured error instead of this literature default once you have it.",
   },
 };
 

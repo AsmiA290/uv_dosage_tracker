@@ -17,12 +17,12 @@ export const MED_RANGES_SED: Record<FitzpatrickType, MedRangeSED> = {
 };
 
 export const FITZPATRICK_LABELS: Record<FitzpatrickType, string> = {
-  I: "Type I — very fair, always burns, never tans",
-  II: "Type II — fair, burns easily, tans minimally",
-  III: "Type III — medium, burns moderately, tans gradually",
-  IV: "Type IV — olive, burns minimally, tans well",
-  V: "Type V — brown, rarely burns, tans darkly",
-  VI: "Type VI — deeply pigmented, never burns",
+  I: "Type I: very fair, always burns, never tans",
+  II: "Type II: fair, burns easily, tans minimally",
+  III: "Type III: medium, burns moderately, tans gradually",
+  IV: "Type IV: olive, burns minimally, tans well",
+  V: "Type V: brown, rarely burns, tans darkly",
+  VI: "Type VI: deeply pigmented, never burns",
 };
 
 /** UV-relevant surface albedo (fraction of incident UV reflected). See citations.surfaceAlbedo. */

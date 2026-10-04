@@ -8,7 +8,7 @@ declare global {
   }
 }
 
-declare const self: ServiceWorkerGlobalScope;
+declare const self: WorkerGlobalScope & typeof globalThis & SerwistGlobalConfig;
 
 /**
  * Offline installability + caching of the last forecast (brief, week 4-5:
