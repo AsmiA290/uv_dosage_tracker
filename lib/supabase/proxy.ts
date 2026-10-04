@@ -38,7 +38,10 @@ export async function updateSession(request: NextRequest) {
   // Anonymous sign-in sets the session cookie on `supabaseResponse`, which
   // is why this call happens here instead of in a page/layout.
   if (!user) {
-    await supabase.auth.signInAnonymously()
+    const { error } = await supabase.auth.signInAnonymously()
+    if (error) {
+      console.error("[v0] Anonymous sign-in failed:", error.message)
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
