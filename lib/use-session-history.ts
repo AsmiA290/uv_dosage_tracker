@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchDbSessionHistory } from "@/lib/supabase/sessions";
+import { fetchDbSessionHistory } from "@/lib/local/sessions";
 import type { HistoricalSession } from "@/lib/session-history";
 
 /**
  * Isolated data-fetching hook so the History screen doesn't need to know
- * how persistence works. Backed by Supabase (`sessions` + `dose_records`,
- * see lib/supabase/sessions.ts) and scoped to the signed-in user via RLS.
+ * how persistence works. Backed by this browser's localStorage, see
+ * lib/local/sessions.ts.
  */
 export function useSessionHistory(): {
   sessions: HistoricalSession[];

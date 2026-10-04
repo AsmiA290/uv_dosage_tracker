@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LocateFixed, Sun, Timer, LineChart, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
-import { saveProfile } from "@/lib/supabase/profile";
+import { saveProfile } from "@/lib/local/profile";
 import type { FitzpatrickType, PostureType, SurfaceType } from "@/lib/dose/types";
 
 const SURFACE_OPTIONS = Object.entries(SURFACE_ALBEDO) as [SurfaceType, { label: string }][];

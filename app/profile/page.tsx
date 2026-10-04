@@ -6,7 +6,7 @@ import { ArrowLeft, LocateFixed } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
-import { fetchProfile, saveProfile } from "@/lib/supabase/profile";
+import { fetchProfile, saveProfile } from "@/lib/local/profile";
 import type { FitzpatrickType, PostureType, SurfaceType } from "@/lib/dose/types";
 
 const SURFACE_OPTIONS = Object.entries(SURFACE_ALBEDO) as [SurfaceType, { label: string }][];
