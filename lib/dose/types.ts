@@ -38,6 +38,9 @@ export interface HourlyUVSample {
   uvIndexClearSky?: number;
   /** Total cloud cover, percent (0-100), when available. */
   cloudCoverPct?: number;
+  /** Precipitation for the hour, millimeters, when available. Drives the
+   *  rain visual state only — not used by the dose engine. */
+  precipitationMm?: number;
 }
 
 /** A single minute-resolution sample after interpolation + corrections. */

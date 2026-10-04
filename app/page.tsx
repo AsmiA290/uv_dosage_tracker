@@ -14,6 +14,7 @@ import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile, type RiskLevel } from "@/components/ui/stat-tile";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { WeatherSky } from "@/components/weather-sky";
+import { WeatherScene3D } from "@/components/weather-scene-3d";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
@@ -82,6 +83,7 @@ export default function NowPage() {
     return (
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-16 pb-28">
         <WeatherSky uvIndex={0} cloudCoverPct={100} hour={now.getHours()} />
+        <WeatherScene3D uvIndex={0} cloudCoverPct={100} precipitationMm={0} hour={now.getHours()} />
         <div className="glass-panel relative z-10 mx-auto flex max-w-md flex-col items-center gap-4 rounded-[calc(var(--radius)+10px)] p-8 text-center">
           <AlertTriangle className="size-10 text-[var(--risk-medium)]" aria-hidden="true" />
           <p className="text-lg font-semibold">Forecast unavailable</p>
@@ -128,6 +130,12 @@ export default function NowPage() {
         cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
         hour={now.getHours()}
       />
+      <WeatherScene3D
+        uvIndex={currentSample?.uvIndex ?? 0}
+        cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
+        precipitationMm={currentSample?.precipitationMm ?? 0}
+        hour={now.getHours()}
+      />
 
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-8">
         <header className="flex items-center justify-between gap-3">
@@ -145,7 +153,7 @@ export default function NowPage() {
           {FITZPATRICK_LABELS[fitzpatrickType]}
         </p>
 
-        <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] px-6 py-8">
+        <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] border border-white/20 px-6 py-8 shadow-inner backdrop-blur-xl backdrop-saturate-150">
           <RadialGaugeShell title="Remaining budget" fraction={budgetFraction} riskLevel={risk} size={220}>
             <span className="hero-number text-5xl font-semibold text-[var(--foreground)]">
               {estimate.remainingBudgetSED.nominal.toFixed(1)}
