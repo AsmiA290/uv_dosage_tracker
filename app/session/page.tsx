@@ -10,16 +10,24 @@ import type {
   DoseEstimate,
   FitzpatrickType,
   HourlyUVSample,
+  Interval,
   PostureType,
   SunscreenApplication,
   SurfaceType,
 } from "@/lib/dose/types";
-import { createDbSession, endDbSession, fetchDbSessionHistory, insertSunscreenApplicationRow } from "@/lib/local/sessions";
+import {
+  createDbSession,
+  endDbSession,
+  fetchDbSessionHistory,
+  fetchPriorDoseToday,
+  insertSunscreenApplicationRow,
+} from "@/lib/local/sessions";
 import { fetchProfile } from "@/lib/local/profile";
 import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
-import type { RiskLevel } from "@/components/ui/stat-tile";
+import { BurnTimeHeadline } from "@/components/burn-time-headline";
+import { budgetFractionLeft, riskFromEstimate } from "@/lib/risk";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
@@ -53,15 +61,12 @@ type ActiveSession = {
   setup: SetupState;
   applications: SunscreenApplication[];
   note: string;
+  /** Dose already logged earlier today, carried into this session's budget. */
+  priorDose: Interval;
 };
 
 type EndedSession = ActiveSession & { endedAt: Date; estimate: DoseEstimate };
 
-function riskFromFraction(fraction: number): RiskLevel {
-  if (fraction > 0.5) return "low";
-  if (fraction > 0.2) return "medium";
-  return "high";
-}
 
 export default function SessionPage() {
   const [phase, setPhase] = useState<"idle" | "active" | "ended">("idle");
@@ -150,6 +155,7 @@ export default function SessionPage() {
       sessionStart: active.startedAt,
       now,
       sunscreenApplications: active.applications,
+      priorDoseTodaySED: active.priorDose,
     });
   }, [samples, active, now, location.latitude, location.longitude]);
 
@@ -185,7 +191,8 @@ export default function SessionPage() {
         await insertSunscreenApplicationRow(sessionId, application);
       }
 
-      setActive({ id: sessionId, startedAt, setup, applications, note: "" });
+      const priorDose = await fetchPriorDoseToday(startedAt);
+      setActive({ id: sessionId, startedAt, setup, applications, note: "", priorDose });
       setNow(new Date());
       setPhase("active");
     } catch (error: unknown) {
@@ -267,7 +274,17 @@ export default function SessionPage() {
             <span className="hero-number font-semibold text-[var(--foreground)]">{durationMin} min</span>
           </div>
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>Total dose</span>
+            <span>This session</span>
+            <UncertaintyRange
+              low={ended.estimate.sessionDoseSED.low}
+              nominal={ended.estimate.sessionDoseSED.nominal}
+              high={ended.estimate.sessionDoseSED.high}
+              unit="SED"
+              size="sm"
+            />
+          </div>
+          <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
+            <span>Today so far</span>
             <UncertaintyRange
               low={ended.estimate.cumulativeDoseSED.low}
               nominal={ended.estimate.cumulativeDoseSED.nominal}
@@ -277,7 +294,7 @@ export default function SessionPage() {
             />
           </div>
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>Budget headroom left</span>
+            <span>Budget left today</span>
             <UncertaintyRange
               low={ended.estimate.remainingBudgetSED.low}
               nominal={ended.estimate.remainingBudgetSED.nominal}
@@ -288,8 +305,8 @@ export default function SessionPage() {
           </div>
           <p className="mt-2 text-sm text-[var(--foreground)]">
             {overBudget
-              ? "This session used more of your estimated daily budget than usual."
-              : "This session stayed within your estimated daily budget."}
+              ? "You likely passed your estimated burn threshold today. Watch for redness over the next day and stay in shade."
+              : "You stayed under your estimated burn threshold today. Some UV damage still happens below it, so keep protecting your skin."}
           </p>
         </div>
 
@@ -329,16 +346,9 @@ export default function SessionPage() {
   }
 
   if (phase === "active" && active) {
-    const budgetFraction =
-      estimate && estimate.medThresholdSED.nominal > 0
-        ? estimate.remainingBudgetSED.nominal / estimate.medThresholdSED.nominal
-        : 0;
-    const risk = riskFromFraction(budgetFraction);
+    const budgetFraction = estimate ? budgetFractionLeft(estimate) : 0;
+    const risk = estimate ? riskFromEstimate(estimate).level : "low";
     const elapsedMin = Math.round((now.getTime() - active.startedAt.getTime()) / 60_000);
-    const hasTimeToThreshold =
-      estimate &&
-      Number.isFinite(estimate.timeToThreshold.p10Minutes) &&
-      Number.isFinite(estimate.timeToThreshold.p90Minutes);
     const currentSpf = active.applications.length > 0 ? activeSPFAtTime(active.applications, now) : null;
 
     return (
@@ -365,7 +375,7 @@ export default function SessionPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--risk-medium)]" aria-hidden="true" />
               <p className="text-sm text-[var(--foreground)]">
-                Reapply sunscreen: protection has dropped below half its labeled SPF (Sun Protection Factor).
+                Time to reapply sunscreen: about half of the layer you put on has likely worn off.
               </p>
             </div>
             <Button
@@ -380,21 +390,16 @@ export default function SessionPage() {
         )}
 
         {estimate && (
-          <div className="flex flex-col items-center py-2">
-            <RadialGaugeShell title="Remaining budget" fraction={budgetFraction} riskLevel={risk} size={200}>
+          <div className="glass-panel flex flex-col items-center gap-5 rounded-[calc(var(--radius)+10px)] px-6 py-6">
+            <BurnTimeHeadline estimate={estimate} lead="Staying out, you could burn in as little as" />
+            <RadialGaugeShell title="Today's burn budget left" fraction={budgetFraction} riskLevel={risk} size={168}>
               <span className="hero-number text-4xl font-semibold text-[var(--foreground)]">
-                {estimate.remainingBudgetSED.nominal.toFixed(1)}
+                {Math.round(budgetFraction * 100)}%
               </span>
-              <span className="text-sm font-medium text-[var(--muted-foreground)]">SED left</span>
+              <span className="hero-number text-xs text-[var(--muted-foreground)]">
+                {estimate.remainingBudgetSED.nominal.toFixed(1)} SED
+              </span>
             </RadialGaugeShell>
-            <p className="mt-4 text-center text-base">
-              You will likely reach your burn threshold in{" "}
-              <strong className="hero-number">
-                {hasTimeToThreshold
-                  ? `${Math.round(estimate.timeToThreshold.p10Minutes)}–${Math.round(estimate.timeToThreshold.p90Minutes)} min`
-                  : "N/A"}
-              </strong>
-            </p>
           </div>
         )}
 
