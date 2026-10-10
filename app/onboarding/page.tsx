@@ -107,7 +107,7 @@ export default function OnboardingPage() {
         </div>
 
         {step === 0 && (
-          <div className="glass-panel flex flex-1 flex-col justify-center gap-6 rounded-[calc(var(--radius)+10px)] p-7">
+          <div className="glass-panel flex flex-col gap-6 rounded-[calc(var(--radius)+10px)] p-7">
             <span className="glass-pill flex size-14 items-center justify-center self-start rounded-full">
               <Sun className="size-7 text-[var(--accent)]" aria-hidden="true" />
             </span>
@@ -131,8 +131,7 @@ export default function OnboardingPage() {
                 <LineChart className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" aria-hidden="true" />
                 <p>
                   <strong className="font-medium">MED</strong> (Minimal Erythema Dose) is your estimated sunburn
-                  threshold, in SED, based on your skin type. The app shows how much budget you have left before
-                  reaching it.
+                  threshold, in SED, based on your skin type. The app tells you how soon you could reach it.
                 </p>
               </div>
               <div className="flex items-start gap-3">
@@ -250,15 +249,16 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        <div className="flex gap-3">
+        <div className="mt-auto flex gap-3">
           {step > 0 && (
-            <Button variant="outline" className="flex-1" onClick={() => setStep((s) => s - 1)} disabled={isSaving}>
+            <Button variant="outline" size="session" className="flex-1" onClick={() => setStep((s) => s - 1)} disabled={isSaving}>
               Back
             </Button>
           )}
           {step < STEPS.length - 1 ? (
             <Button
               variant="glass"
+              size="session"
               className="glass-cta flex-1"
               onClick={() => setStep((s) => s + 1)}
               disabled={step === 1 && !fitzpatrickType}
@@ -268,6 +268,7 @@ export default function OnboardingPage() {
           ) : (
             <Button
               variant="glass"
+              size="session"
               className="glass-cta flex-1"
               onClick={handleFinish}
               disabled={isSaving || !fitzpatrickType}

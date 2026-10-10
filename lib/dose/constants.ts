@@ -6,14 +6,19 @@ export const UVI_TO_WM2 = 0.025;
 /** 1 Standard Erythema Dose = 100 J/m². See citations.sedDefinition. */
 export const JOULES_PER_SED = 100;
 
-/** MED ranges by Fitzpatrick type, in SED. See citations.medRangesByType — NOT YET VERIFIED. */
+/**
+ * MED ranges by Fitzpatrick type, in SED. Values follow the widely reproduced
+ * ICNIRP-style skin-type table (Type I 2-3 SED ... Type VI 10-20 SED).
+ * See citations.medRangesByType — still marked NOT YET VERIFIED until a
+ * primary table is checked page-by-page.
+ */
 export const MED_RANGES_SED: Record<FitzpatrickType, MedRangeSED> = {
-  I: { fitzpatrickType: "I", lowSED: 1.5, highSED: 3.4, verified: false, citationKey: "medRangesByType" },
-  II: { fitzpatrickType: "II", lowSED: 2.5, highSED: 5.0, verified: false, citationKey: "medRangesByType" },
-  III: { fitzpatrickType: "III", lowSED: 3.0, highSED: 6.0, verified: false, citationKey: "medRangesByType" },
-  IV: { fitzpatrickType: "IV", lowSED: 4.5, highSED: 8.0, verified: false, citationKey: "medRangesByType" },
+  I: { fitzpatrickType: "I", lowSED: 2.0, highSED: 3.0, verified: false, citationKey: "medRangesByType" },
+  II: { fitzpatrickType: "II", lowSED: 2.5, highSED: 3.5, verified: false, citationKey: "medRangesByType" },
+  III: { fitzpatrickType: "III", lowSED: 3.0, highSED: 5.0, verified: false, citationKey: "medRangesByType" },
+  IV: { fitzpatrickType: "IV", lowSED: 4.5, highSED: 6.0, verified: false, citationKey: "medRangesByType" },
   V: { fitzpatrickType: "V", lowSED: 6.0, highSED: 10.0, verified: false, citationKey: "medRangesByType" },
-  VI: { fitzpatrickType: "VI", lowSED: 8.0, highSED: 15.0, verified: false, citationKey: "medRangesByType" },
+  VI: { fitzpatrickType: "VI", lowSED: 10.0, highSED: 20.0, verified: false, citationKey: "medRangesByType" },
 };
 
 export const FITZPATRICK_LABELS: Record<FitzpatrickType, string> = {
@@ -45,24 +50,40 @@ export const ALBEDO_REFERENCE_SURFACE: SurfaceType = "grass";
  */
 export const ALBEDO_SENSITIVITY = 0.5;
 
-/** Personal exposure ratio (ambient horizontal UV -> UV actually received) by posture. See citations.personalExposureRatio. */
+/**
+ * Exposure ratio for the MOST EXPOSED body site (top of head, shoulders,
+ * nose), relative to ambient horizontal-plane UV. Sunburn appears first on
+ * these upward-facing sites, and an upward-facing horizontal patch of skin
+ * receives close to the full ambient horizontal irradiance by definition
+ * (ratio ~1, minus self-shading and tilt). Using a whole-body or vertical-
+ * surface average (~0.5) would make burn-time estimates roughly twice as
+ * long as they should be, which is the unsafe direction for this app.
+ * Posture offsets are small app assumptions, not measured values.
+ * See citations.personalExposureRatio.
+ */
 export const PERSONAL_EXPOSURE_RATIO: Record<PostureType, { low: number; nominal: number; high: number }> = {
-  standing: { low: 0.4, nominal: 0.5, high: 0.6 },
-  sitting: { low: 0.3, nominal: 0.4, high: 0.5 },
-  activeSport: { low: 0.45, nominal: 0.55, high: 0.65 },
+  standing: { low: 0.6, nominal: 0.8, high: 1.0 },
+  sitting: { low: 0.55, nominal: 0.75, high: 0.95 },
+  activeSport: { low: 0.65, nominal: 0.85, high: 1.0 },
 };
 
 /** Label-testing reference application thickness for sunscreen SPF claims, mg/cm². See citations.sunscreenApplicationThickness. */
 export const SPF_REFERENCE_THICKNESS_MG_CM2 = 2.0;
 
-/** Illustrative wear-off half-lives (minutes) for applied sunscreen thickness, by condition. */
+/**
+ * APP ASSUMPTION, not a measured constant: wear-off half-lives (minutes) for
+ * applied sunscreen thickness, by condition. Chosen so that half the layer is
+ * gone at the 2-hour reapplication interval in sun-safety guidance (dry), and
+ * much sooner with sweat or water (cf. the 40-minute water-resistance label).
+ * See citations.sunscreenWearOff.
+ */
 export const SUNSCREEN_WEAR_HALF_LIFE_MINUTES: Record<"dry" | "sweating" | "swimming", number> = {
-  dry: 150,
+  dry: 120,
   sweating: 60,
   swimming: 40,
 };
 
-/** Fraction of labeled SPF below which the app nudges the user to reapply. */
+/** Fraction of the applied sunscreen layer remaining below which the app nudges the user to reapply. */
 export const REAPPLY_THRESHOLD_FRACTION = 0.5;
 
 /** Default 1-sigma relative forecast error assumed for the UV index, absent a measured value. See citations.forecastUncertainty. */

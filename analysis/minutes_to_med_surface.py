@@ -28,12 +28,12 @@ FIG_DIR.mkdir(exist_ok=True)
 UVI_TO_WM2 = 0.025  # lib/dose/constants.ts: UVI_TO_WM2
 JOULES_PER_SED = 100.0  # lib/dose/constants.ts: JOULES_PER_SED
 MED_RANGES_SED = {  # lib/dose/constants.ts: MED_RANGES_SED (nominal = midpoint)
-    "I": (1.5, 3.4),
-    "II": (2.5, 5.0),
-    "III": (3.0, 6.0),
-    "IV": (4.5, 8.0),
+    "I": (2.0, 3.0),
+    "II": (2.5, 3.5),
+    "III": (3.0, 5.0),
+    "IV": (4.5, 6.0),
     "V": (6.0, 10.0),
-    "VI": (8.0, 15.0),
+    "VI": (10.0, 20.0),
 }
 # ---------------------------------------------------------------------------
 

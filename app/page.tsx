@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, MapPin } from "lucide-react";
+import { AlertTriangle, ChevronDown, MapPin } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
+import { interpolateHourlyToMinutes, uviToErythemalIrradianceWm2 } from "@/lib/dose/irradiance";
+import { personalExposureRatio } from "@/lib/dose/corrections";
 import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
 import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
 import { fetchProfile } from "@/lib/local/profile";
+import { fetchPriorDoseToday } from "@/lib/local/sessions";
 import type { UserProfile } from "@/lib/local/profile";
-import type { HourlyUVSample } from "@/lib/dose/types";
-import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
+import type { HourlyUVSample, Interval } from "@/lib/dose/types";
+import { budgetFractionLeft, riskFromEstimate, uvCategory } from "@/lib/risk";
+import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { RiskBadge } from "@/components/ui/risk-badge";
-import { StatTile, type RiskLevel } from "@/components/ui/stat-tile";
-import { UncertaintyRange } from "@/components/ui/uncertainty-range";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Button } from "@/components/ui/button";
 import { WeatherSky } from "@/components/weather-sky";
 import { WeatherScene3D } from "@/components/weather-scene-3d";
 
@@ -22,18 +27,20 @@ const FALLBACK_LAT = 39.78;
 const FALLBACK_LON = -89.65;
 const FALLBACK_LABEL = "Springfield, IL";
 
-function riskFromFraction(fraction: number): RiskLevel {
-  if (fraction > 0.5) return "low";
-  if (fraction > 0.2) return "medium";
-  return "high";
-}
+const ZERO: Interval = { low: 0, nominal: 0, high: 0 };
 
+/**
+ * Now screen: answers one question, "if I go outside right now, how soon
+ * could I burn?" It does NOT invent a session; the only dose counted so far
+ * is what the user actually logged in saved sessions earlier today.
+ */
 export default function NowPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined);
   const [samples, setSamples] = useState<HourlyUVSample[] | null>(null);
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
+  const [priorDoseToday, setPriorDoseToday] = useState<Interval>(ZERO);
 
   useEffect(() => {
     fetchProfile().then((p) => {
@@ -41,10 +48,18 @@ export default function NowPage() {
         router.replace("/onboarding");
         return;
       }
+      const t = new Date();
       setProfile(p);
-      setNow(new Date());
+      setNow(t);
+      fetchPriorDoseToday(t).then(setPriorDoseToday).catch(() => setPriorDoseToday(ZERO));
     });
   }, [router]);
+
+  // Refresh "now" every 5 minutes so the estimate stays current if the screen is left open.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 5 * 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const latitude = profile?.homeLat ?? FALLBACK_LAT;
   const longitude = profile?.homeLon ?? FALLBACK_LON;
@@ -58,7 +73,6 @@ export default function NowPage() {
 
   const estimate = useMemo(() => {
     if (!profile || !samples || !now) return null;
-    const sessionStart = new Date(now.getTime() - 30 * 60_000);
     return computeDoseEstimate({
       fitzpatrickType: profile.fitzpatrickType ?? "II",
       latitude,
@@ -66,146 +80,168 @@ export default function NowPage() {
       surface: profile.defaultSurface ?? "grass",
       posture: profile.defaultPosture ?? "standing",
       hourlySamples: samples,
-      sessionStart,
+      sessionStart: now,
       now,
+      priorDoseTodaySED: priorDoseToday,
     });
-  }, [profile, samples, now, latitude, longitude]);
+  }, [profile, samples, now, latitude, longitude, priorDoseToday]);
 
   if (profile === undefined || !now) {
-    return (
-      <main className="flex min-h-screen items-center justify-center pb-28">
-        <div className="h-48 w-full max-w-md animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
-      </main>
-    );
+    return <LoadingShell />;
   }
 
   if (forecastError) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-16 pb-28">
-        <WeatherSky uvIndex={0} cloudCoverPct={100} hour={now.getHours()} />
-        <WeatherScene3D uvIndex={0} cloudCoverPct={100} precipitationMm={0} hour={now.getHours()} />
-        <div className="glass-panel relative z-10 mx-auto flex max-w-md flex-col items-center gap-4 rounded-[calc(var(--radius)+10px)] p-8 text-center">
+      <main className="flex min-h-screen items-center justify-center px-6 py-16 pb-28">
+        <div className="glass-panel mx-auto flex max-w-md flex-col items-center gap-4 rounded-[calc(var(--radius)+10px)] p-8 text-center">
           <AlertTriangle className="size-10 text-[var(--risk-medium)]" aria-hidden="true" />
           <p className="text-lg font-semibold">Forecast unavailable</p>
           <p className="text-sm text-[var(--muted-foreground)]">{forecastError}</p>
-          <p className="text-xs text-[var(--muted-foreground)]">
-            Showing no cached estimate yet. Try again shortly.
-          </p>
+          <p className="text-xs text-[var(--muted-foreground)]">Try again in a few minutes.</p>
         </div>
       </main>
     );
   }
 
-  if (!estimate || !profile) {
-    return (
-      <main className="flex min-h-screen items-center justify-center pb-28">
-        <div className="h-48 w-full max-w-md animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
-      </main>
-    );
+  if (!estimate || !profile || !samples) {
+    return <LoadingShell />;
   }
 
   const fitzpatrickType = profile.fitzpatrickType ?? "II";
   const locationLabel = profile.homeLabel ?? FALLBACK_LABEL;
-  const sessionStart = new Date(now.getTime() - 30 * 60_000);
-
-  // Nearest hourly sample to "now" drives the animated sky's sun/cloud
-  // state so it reflects the actual forecast, not just the clock.
-  const currentSample =
-    (samples ?? []).find((s) => s.time.getTime() >= now.getTime()) ?? samples?.[samples.length - 1];
-
-  const budgetFraction =
-    estimate.medThresholdSED.nominal > 0
-      ? estimate.remainingBudgetSED.nominal / estimate.medThresholdSED.nominal
-      : 0;
-  const risk = riskFromFraction(budgetFraction);
-  const riskLabel = risk === "low" ? "Low risk" : risk === "medium" ? "Moderate risk" : "High risk";
-
-  const hasTimeToThreshold =
-    Number.isFinite(estimate.timeToThreshold.p10Minutes) && Number.isFinite(estimate.timeToThreshold.p90Minutes);
+  const risk = riskFromEstimate(estimate);
+  // Solar-shaped UV at this minute (same interpolation the dose engine uses).
+  const uvNow =
+    interpolateHourlyToMinutes(samples, latitude, longitude, now, new Date(now.getTime() + 2 * 60_000))[0]?.uvIndex ??
+    nearestUv(samples, now);
+  const perNominal = personalExposureRatio(profile.defaultPosture ?? "standing", profile.defaultSurface ?? "grass").nominal;
+  const doseRateNow = (uviToErythemalIrradianceWm2(uvNow * perNominal) * 60) / 100; // SED per minute
+  const peak = peakToday(samples, now);
+  // Hourly sample covering this hour, for the banner's cloud/rain state.
+  const currentSample = [...samples].reverse().find((s) => s.time.getTime() <= now.getTime()) ?? samples[0];
+  const usedPct = Math.round((1 - budgetFractionLeft(estimate)) * 100);
+  const loggedToday = priorDoseToday.nominal > 0;
 
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden pb-28">
-      <WeatherSky
-        uvIndex={currentSample?.uvIndex ?? 0}
-        cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
-        hour={now.getHours()}
-      />
-      <WeatherScene3D
-        uvIndex={currentSample?.uvIndex ?? 0}
-        cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
-        precipitationMm={currentSample?.precipitationMm ?? 0}
-        hour={now.getHours()}
-      />
-
-      <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-6 py-8">
-        <header className="flex items-center justify-between gap-3">
-          <div className="glass-pill flex flex-col gap-0.5 rounded-2xl px-4 py-2">
-            <h1 className="text-base font-semibold leading-tight text-[var(--foreground)]">UV Dose Tracker</h1>
-            <p className="flex items-center gap-1 text-xs font-medium leading-tight text-[var(--foreground)]/75">
-              <MapPin className="size-3.5" aria-hidden="true" />
-              {locationLabel}
-            </p>
-          </div>
-          <RiskBadge level={risk} label={riskLabel} />
-        </header>
-
-        <p className="glass-pill inline-flex w-fit rounded-full px-3 py-1.5 text-sm font-medium text-[var(--foreground)]/85">
-          {FITZPATRICK_LABELS[fitzpatrickType]}
-        </p>
-
-        <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] border border-white/20 px-6 py-8 shadow-inner backdrop-blur-xl backdrop-saturate-150">
-          <RadialGaugeShell title="Remaining budget" fraction={budgetFraction} riskLevel={risk} size={220}>
-            <span className="hero-number text-5xl font-semibold text-[var(--foreground)]">
-              {estimate.remainingBudgetSED.nominal.toFixed(1)}
-            </span>
-            <span className="text-sm font-medium text-[var(--muted-foreground)]">SED left</span>
-          </RadialGaugeShell>
-          <UncertaintyRange
-            low={estimate.remainingBudgetSED.low}
-            nominal={estimate.remainingBudgetSED.nominal}
-            high={estimate.remainingBudgetSED.high}
-            unit="SED range"
-          />
-        </div>
-
-        <div className="glass-panel rounded-[calc(var(--radius)+6px)] p-4 text-center">
-          <p className="text-sm text-[var(--muted-foreground)]">You will likely reach your burn threshold in</p>
-          <p className="hero-number mt-1 text-2xl font-semibold text-[var(--foreground)]">
-            {hasTimeToThreshold
-              ? `${Math.round(estimate.timeToThreshold.p10Minutes)}–${Math.round(estimate.timeToThreshold.p90Minutes)} min`
-              : "N/A"}
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-6 py-8 pb-32">
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold leading-tight">UV Dose Tracker</h1>
+          <p className="flex items-center gap-1 text-sm text-[var(--muted-foreground)]">
+            <MapPin className="size-3.5" aria-hidden="true" />
+            {locationLabel}
           </p>
         </div>
+        <RiskBadge level={risk.level} label={risk.label} />
+      </header>
 
-        <div className="grid grid-cols-2 gap-3">
-          <StatTile
-            label="Dose rate"
-            value={estimate.currentDoseRateSEDPerMinute.toFixed(3)}
-            unit="SED/min"
-          />
-          <StatTile
-            label="Burn threshold (MED)"
-            value={estimate.medThresholdSED.nominal.toFixed(1)}
-            unit="SED"
-          />
-          <StatTile
-            label="Dose so far"
-            value={estimate.cumulativeDoseSED.nominal.toFixed(2)}
-            unit="SED"
-          />
-          <StatTile
-            label="Session length"
-            value={Math.round((now.getTime() - sessionStart.getTime()) / 60_000)}
-            unit="min"
-          />
-        </div>
-
-        <p className="glass-pill rounded-2xl px-4 py-3 text-center text-xs text-[var(--foreground)]/75">
-          SED (Standard Erythema Dose) measures cumulative UV exposure. MED (Minimal Erythema Dose) is your
-          estimated sunburn threshold. Educational estimate only, not a medical device and not a diagnosis. See
-          Methods for every parameter and its source.
+      {/* Live weather banner: the animated sky lives in its own contained card
+          so it can never sit behind (and wash out) the numbers below. */}
+      <div className="relative h-40 overflow-hidden rounded-[calc(var(--radius)+10px)] border border-[var(--border)]">
+        <WeatherSky
+          uvIndex={currentSample?.uvIndex ?? 0}
+          cloudCoverPct={currentSample?.cloudCoverPct ?? 0}
+          hour={now.getHours()}
+          fadeBottom={false}
+        />
+        <WeatherScene3D
+          uvIndex={currentSample?.uvIndex ?? 0}
+          cloudCoverPct={currentSample?.cloudCoverPct ?? 0}
+          precipitationMm={currentSample?.precipitationMm ?? 0}
+          hour={now.getHours()}
+        />
+        <p className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-[var(--foreground)] shadow-sm">
+          UV {uvNow.toFixed(1)} · {uvCategory(uvNow)}
+          {currentSample?.cloudCoverPct !== undefined ? ` · ${Math.round(currentSample.cloudCoverPct)}% cloud` : ""}
         </p>
       </div>
+
+      <section
+        className="glass-panel flex flex-col gap-5 rounded-[calc(var(--radius)+10px)] border-t-4 px-6 py-7"
+        style={{ borderTopColor: `var(--risk-${risk.level})` }}
+      >
+        <BurnTimeHeadline estimate={estimate} lead="If you go outside now, you could burn in as little as" />
+        <Button asChild variant="glass" size="session" className="glass-cta w-full">
+          <Link href="/session">Start a session</Link>
+        </Button>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile
+          label="Peak UV"
+          value={peak ? peak.uvIndex.toFixed(1) : "–"}
+          caption={peak ? `today at ${peak.time.toLocaleTimeString([], { hour: "numeric" })}` : "No data"}
+          compact
+        />
+        <StatTile
+          label="Used today"
+          value={`${usedPct}%`}
+          caption={loggedToday ? "of your burn budget" : "nothing logged yet"}
+          compact
+        />
+      </div>
+
+      <p className="text-center text-sm text-[var(--muted-foreground)]">
+        Estimated for {FITZPATRICK_LABELS[fitzpatrickType].split(":")[0]} skin, on your most exposed areas
+        (head, shoulders, nose). <Link href="/profile" className="font-medium text-[var(--accent)] underline-offset-2 hover:underline">Change</Link>
+      </p>
+
+      <details className="glass-panel-solid group rounded-[var(--radius)] p-4 text-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
+          The numbers behind this
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-[var(--muted-foreground)]">
+          <dt>Dose rate right now</dt>
+          <dd className="hero-number text-right text-[var(--foreground)]">
+            {doseRateNow.toFixed(3)} SED/min
+          </dd>
+          <dt>Your burn threshold (MED)</dt>
+          <dd className="hero-number text-right text-[var(--foreground)]">
+            {estimate.medThresholdSED.low.toFixed(1)}–{estimate.medThresholdSED.high.toFixed(1)} SED
+          </dd>
+          <dt>Logged earlier today</dt>
+          <dd className="hero-number text-right text-[var(--foreground)]">{priorDoseToday.nominal.toFixed(2)} SED</dd>
+          <dt>Budget left</dt>
+          <dd className="hero-number text-right text-[var(--foreground)]">
+            {estimate.remainingBudgetSED.nominal.toFixed(1)} SED ({estimate.remainingBudgetSED.low.toFixed(1)}–
+            {estimate.remainingBudgetSED.high.toFixed(1)})
+          </dd>
+        </dl>
+        <p className="mt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
+          SED (Standard Erythema Dose) measures UV dose; 1 SED = 100 J/m² of sunburn-weighted UV. The headline uses
+          the earliest likely time from 2,000 simulations that vary your threshold, the forecast, and how much UV your
+          skin catches. See <Link href="/methods" className="font-medium text-[var(--accent)]">Methods</Link> for every source.
+        </p>
+      </details>
+
+      <p className="text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
+        Educational estimate only, not a medical device. Staying under your burn threshold does not mean no UV damage.
+      </p>
     </main>
   );
+}
+
+function LoadingShell() {
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-6 py-8 pb-32">
+      <div className="h-12 w-2/3 animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+      <div className="h-64 animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+      <div className="h-24 animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+    </main>
+  );
+}
+
+function nearestUv(samples: HourlyUVSample[], now: Date): number {
+  let best: HourlyUVSample | undefined;
+  for (const s of samples) {
+    if (!best || Math.abs(s.time.getTime() - now.getTime()) < Math.abs(best.time.getTime() - now.getTime())) best = s;
+  }
+  return best?.uvIndex ?? 0;
+}
+
+function peakToday(samples: HourlyUVSample[], now: Date): HourlyUVSample | null {
+  const today = samples.filter((s) => s.time.toDateString() === now.toDateString());
+  if (today.length === 0) return null;
+  return today.reduce((a, b) => (b.uvIndex > a.uvIndex ? b : a));
 }

@@ -110,82 +110,47 @@ body {
 }
 
 /*
- * Liquid-glass surfaces: translucent, blurred, saturated panels with a
- * bright top-edge highlight, standing in for the app's former flat
- * "border + solid surface" cards. `-strong`/`-solid` variants trade some
- * translucency for legibility where a lot of small text sits on the panel
- * (form controls, dense lists) — never drop below these opacities, since
- * this app is read outdoors in direct sun.
+ * Card surfaces. These were translucent "liquid glass" panels, but
+ * translucency over a bright sky cut text contrast, which matters most for
+ * an app read outdoors in direct sun. They are now near-opaque white cards
+ * with a soft shadow; the class names are kept so every screen picks up the
+ * change without edits.
+ *  - .glass-panel        primary card
+ *  - .glass-panel-solid  dense content (forms, lists, citations)
+ *  - .glass-pill         small chips and the bottom nav
  */
-.glass-panel {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, white 40%, transparent) 0%, transparent 35%),
-    color-mix(in srgb, var(--surface) 62%, transparent);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid color-mix(in srgb, white 60%, transparent);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, white 80%, transparent),
-    inset 0 -1px 0 0 color-mix(in srgb, black 6%, transparent),
-    0 8px 30px -10px rgba(15, 23, 42, 0.22);
-}
-
-.glass-panel-solid {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, white 30%, transparent) 0%, transparent 30%),
-    color-mix(in srgb, var(--surface) 90%, transparent);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid color-mix(in srgb, white 45%, var(--border));
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, white 65%, transparent),
-    0 8px 24px -14px rgba(15, 23, 42, 0.16);
+.glass-panel,
+.glass-panel-solid,
+.glass-pill {
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.18);
 }
 
 .glass-pill {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, white 45%, transparent) 0%, transparent 35%),
-    color-mix(in srgb, var(--surface) 78%, transparent);
-  backdrop-filter: blur(24px) saturate(190%);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid color-mix(in srgb, white 65%, transparent);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, white 85%, transparent),
-    inset 0 -1px 0 0 color-mix(in srgb, black 5%, transparent),
-    0 10px 30px -10px rgba(15, 23, 42, 0.3);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 30px -14px rgba(15, 23, 42, 0.25);
 }
 
 /*
- * Accent-tinted liquid glass, for the single primary action on a screen
- * (Start Session, Save, Sign in). Same blurred/translucent language as
- * .glass-panel-solid above, just tinted with --accent instead of neutral,
- * so CTAs read as "glass" too instead of falling back to a flat fill.
+ * Solid accent fill for the single primary action on a screen
+ * (Start Session, Save, Continue): the highest-contrast element on the page.
  */
 .glass-cta {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, white 35%, transparent) 0%, transparent 35%),
-    color-mix(in srgb, var(--accent) 88%, var(--surface) 12%);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid color-mix(in srgb, white 40%, var(--accent));
+  background: var(--accent);
+  border: 1px solid var(--accent);
   color: var(--accent-foreground);
-  box-shadow:
-    inset 0 1px 0 0 color-mix(in srgb, white 55%, transparent),
-    0 10px 26px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .glass-cta:hover {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, white 35%, transparent) 0%, transparent 35%),
-    color-mix(in srgb, var(--accent) 97%, var(--surface) 3%);
+  background: color-mix(in srgb, var(--accent) 88%, black);
 }
 
 /*
  * Risk pills (RiskBadge): always sit on a light, blurred surface floor
  * first, then tint faintly with the risk color — so identification color
  * never has to double as the only source of contrast. This keeps the
- * label legible over anything behind it, including the dark night/dusk
- * WeatherSky backdrop on the Now page.
+ * label legible over anything behind it.
  */
 .risk-pill {
   backdrop-filter: blur(20px) saturate(160%);
@@ -197,18 +162,21 @@ body {
 }
 
 .risk-pill-low {
-  background: color-mix(in srgb, var(--surface) 75%, var(--risk-low) 16%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--risk-low) 12%);
+  border-color: color-mix(in srgb, var(--risk-low) 35%, transparent);
 }
 
 .risk-pill-medium {
-  background: color-mix(in srgb, var(--surface) 75%, var(--risk-medium) 16%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--risk-medium) 12%);
+  border-color: color-mix(in srgb, var(--risk-medium) 35%, transparent);
 }
 
 .risk-pill-high {
-  background: color-mix(in srgb, var(--surface) 75%, var(--risk-high) 16%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--risk-high) 12%);
+  border-color: color-mix(in srgb, var(--risk-high) 35%, transparent);
 }
 
-/* Animated weather-sky hero (Now page) ------------------------------- */
+/* Animated weather banner (Now page) ------------------------------- */
 @keyframes drift-cloud {
   from {
     transform: translateX(-6%);

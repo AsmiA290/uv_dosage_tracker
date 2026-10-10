@@ -5,6 +5,7 @@ import type {
   SunscreenApplication,
   SurfaceType,
 } from "@/lib/dose/types";
+import type { Interval } from "@/lib/dose/types";
 import type { HistoricalSession } from "@/lib/session-history";
 
 const STORAGE_KEY = "uv-tracker:sessions";
@@ -70,7 +71,9 @@ export async function endDbSession(params: {
     startedAt: params.startedAt.toISOString(),
     endedAt: params.endedAt.toISOString(),
     fitzpatrickType: params.fitzpatrickType,
-    cumulativeDoseSED: params.estimate.cumulativeDoseSED,
+    // Store this session's own dose, not the day total, so History can sum
+    // sessions without double-counting.
+    cumulativeDoseSED: params.estimate.sessionDoseSED,
     medThresholdSED: params.estimate.medThresholdSED,
     surface: params.surface,
     note: params.note || undefined,
@@ -81,4 +84,22 @@ export async function endDbSession(params: {
 /** Fetches saved sessions, newest first. */
 export async function fetchDbSessionHistory(): Promise<HistoricalSession[]> {
   return [...readHistory()].sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+}
+
+/**
+ * Sum of dose from sessions saved earlier on the same local calendar day as
+ * `now`. Fed into the dose engine as priorDoseTodaySED so a second outing
+ * does not start from a full budget.
+ */
+export async function fetchPriorDoseToday(now: Date): Promise<Interval> {
+  const total = { low: 0, nominal: 0, high: 0 };
+  for (const s of readHistory()) {
+    const start = new Date(s.startedAt);
+    const end = new Date(s.endedAt);
+    if (start.toDateString() !== now.toDateString() || end.getTime() > now.getTime()) continue;
+    total.low += s.cumulativeDoseSED.low;
+    total.nominal += s.cumulativeDoseSED.nominal;
+    total.high += s.cumulativeDoseSED.high;
+  }
+  return total;
 }

@@ -49,16 +49,16 @@ export const CITATIONS: Record<string, Citation> = {
     key: "medRangesByType",
     claim:
       "Approximate Minimal Erythema Dose (MED) ranges by Fitzpatrick type, in Standard Erythema Dose (SED) units: " +
-      "I 1.5-3.4, II 2.5-5.0, III 3.0-6.0, IV 4.5-8.0, V 6.0-10.0, VI 8.0-15.0.",
+      "I 2-3, II 2.5-3.5, III 3-5, IV 4.5-6, V 6-10, VI 10-20.",
     source:
-      "Synthesized from Fitzpatrick (1988) skin-type definitions and commonly cited photobiology MED summaries " +
-      "(e.g. Diffey, B.L., 'Sources and measurement of ultraviolet radiation,' Methods, 2002;28(1):4-13; " +
-      "CIE Technical Reports on erythemal reference dosimetry). Ranges vary meaningfully between studies " +
-      "because MED is measured differently (solar simulator vs. narrowband UV, single reader vs. panel).",
+      "Skin-type MED table as reproduced from ICNIRP guidance in the sun-protection literature; " +
+      "background on MED measurement in Harrison, G.I., Young, A.R. 'Ultraviolet radiation-induced erythema in human skin.' " +
+      "Methods, 2002;28(1):14-19.",
     confirmed: false,
     note:
-      "ACTION ITEM (brief 3.3): pick one MED study with a published table, cite its exact figures here, " +
-      "and set confirmed: true. Until then, treat these as an illustrative starting range, not a verified value.",
+      "ACTION ITEM: open one primary table (ICNIRP statement or a measured MED study) and copy its exact figures and page/table number here, " +
+      "then set confirmed: true. MED varies widely within each skin type, and self-reported Fitzpatrick type is itself imprecise, " +
+      "which is why the app samples across the whole range.",
   },
   cloudModificationFactor: {
     key: "cloudModificationFactor",
@@ -76,39 +76,54 @@ export const CITATIONS: Record<string, Citation> = {
   surfaceAlbedo: {
     key: "surfaceAlbedo",
     claim:
-      "UV-relevant surface albedo (fraction reflected): grass ~2-5%, bare soil ~5-10%, concrete/pavement ~10-15%, " +
-      "dry sand ~15-20%, calm water (mid-day) ~5-10%, fresh snow up to ~80-90%.",
+      "UV-relevant surface albedo (fraction reflected): grass and water under ~10%, dry beach sand ~15%, " +
+      "concrete/pavement ~10-12%, fresh snow up to ~80%.",
     source:
-      "Blumthaler, M., Ambach, W. 'Indication of increasing solar ultraviolet-B radiation flux in alpine regions.' " +
-      "Science, 1990;248(4952):206-208 (snow albedo); " +
-      "WHO/WMO/UNEP/ICNIRP Global Solar UV Index guide (2002), surface reflectance table.",
+      "World Health Organization, WMO, UNEP, ICNIRP: Global Solar UV Index: A Practical Guide (2002), " +
+      "section on factors affecting UV (ground reflection).",
     confirmed: false,
-    note: "Point estimates chosen from the middle of commonly cited ranges; confirm against the guide's table before submission.",
+    note:
+      "Point estimates sit within the guide's ranges. The 0.5 sensitivity factor that converts an albedo difference into extra dose on " +
+      "skin is an app assumption.",
   },
   personalExposureRatio: {
     key: "personalExposureRatio",
     claim:
-      "Personal exposure ratio (PER), the fraction of ambient horizontal-plane erythemal UV actually received " +
-      "by facial/neck/shoulder skin, is roughly 0.4-0.6 for a standing adult, varying with solar elevation and posture.",
+      "Exposure ratio (ER) for the most exposed body site (top of head, shoulders, nose) relative to ambient horizontal UV: " +
+      "0.6-1.0, nominal ~0.8. Upward-facing skin receives close to the full horizontal irradiance; vertical or shaded sites receive much less. " +
+      "The app estimates for the most exposed site because that is where sunburn appears first.",
     source:
-      "Vernez, D., Milon, A., Vuilleumier, L., et al. work on anatomical/personal UV exposure ratios; " +
-      "Serrano, M-A., Cañada, J., Moreno, J.C. 'Erythemal ultraviolet exposure of cyclists in Valencia, Spain.' " +
-      "Photochemistry and Photobiology, 2010. Both report body-site exposure ratios well below 1.0 relative to " +
-      "a horizontal ambient reference.",
+      "Vernez, D., Milon, A., Vuilleumier, L., et al. 'A general model to predict individual exposure to solar UV by using ambient irradiance data.' " +
+      "Journal of Exposure Science and Environmental Epidemiology, 2015;25(1):113-118. doi:10.1038/jes.2014.6. " +
+      "Site-specific ER depends on solar zenith angle and the fraction of sky visible from the site.",
     confirmed: false,
-    note: "This is the correction most consumer UV apps skip entirely: flagging it, with a cited range, is itself part of the technical-challenge answer.",
+    note:
+      "ACTION ITEM: pull per-site ER values from Vernez et al. (2015) or the SimUVEx v2 papers and tighten this range. " +
+      "Posture offsets (sitting -0.05, active sport +0.05) are app assumptions.",
   },
   sunscreenApplicationThickness: {
     key: "sunscreenApplicationThickness",
     claim:
-      "Labeled SPF is measured at 2.0 mg/cm² application thickness (ISO 24444 / FDA sunscreen testing standard); " +
-      "real-world consumer application is commonly 0.5-1.0 mg/cm², and protection falls off non-linearly " +
-      "(roughly as labeledSPF^(appliedThickness / 2.0)) rather than proportionally with thickness.",
+      "Labeled SPF is measured at 2.0 mg/cm²; real-world application is commonly 0.5-1.0 mg/cm². " +
+      "How protection falls with thinner layers is debated: some studies support an exponential model (SPF^(thickness/2)), " +
+      "others found a roughly linear relationship. The app uses the exponential model because it is the more cautious of the two.",
     source:
       "ISO 24444:2019 In vivo determination of the sunscreen protection factor (SPF); " +
-      "Diffey, B.L. 'When translucent is deceptive.' International Journal of Cosmetic Science, 2001;23(2):67-71.",
+      "Faurschou, A., Wulf, H.C. 'The relation between sun protection factor and amount of sunscreen applied in vivo.' " +
+      "British Journal of Dermatology, 2007;156(4):716-719.",
     confirmed: false,
-    note: "The exponential form is a widely cited approximation of the underlying Beer–Lambert-style attenuation; verify against the Diffey paper's exact functional form before final submission.",
+    note: "Add the specific paper supporting the exponential form once chosen; the linear result is cited so judges can see both sides.",
+  },
+  sunscreenWearOff: {
+    key: "sunscreenWearOff",
+    claim:
+      "Applied sunscreen loses effectiveness over time, faster with sweating or swimming; guidance is to reapply about every 2 hours " +
+      "and after swimming or sweating. The half-lives used here (120 min dry, 60 min sweating, 40 min swimming) are app assumptions " +
+      "chosen to match that guidance, not measured constants. The app suggests reapplying once about half the layer has worn off.",
+    source:
+      "Diffey, B.L. 'When should sunscreen be reapplied?' Journal of the American Academy of Dermatology, 2001;45(6):882-885; " +
+      "FDA sunscreen labeling rule (water resistance claims of 40 or 80 minutes).",
+    confirmed: false,
   },
   solarPosition: {
     key: "solarPosition",

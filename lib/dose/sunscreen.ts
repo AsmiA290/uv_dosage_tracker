@@ -60,8 +60,20 @@ export function protectionMultiplier(spf: number): number {
   return spf > 0 ? 1 / spf : 1;
 }
 
-/** True when effective SPF has decayed below the reapply threshold fraction of its labeled value. */
+/**
+ * True once about half of the applied layer has likely worn off (one
+ * wear-off half-life: 2 h dry, matching standard reapplication guidance;
+ * faster with sweat or water). Judged on remaining layer, not on effective
+ * SPF versus the label: a thin first layer is already far below its label,
+ * which would otherwise trigger a "reapply" nudge the moment it is applied.
+ */
 export function shouldReapply(application: SunscreenApplication, atTime: Date): boolean {
-  const current = effectiveSPFAtTime(application, atTime);
-  return current < application.labeledSPF * REAPPLY_THRESHOLD_FRACTION;
+  const minutesElapsed = (atTime.getTime() - application.appliedAt.getTime()) / 60_000;
+  if (minutesElapsed < 0 || application.appliedThicknessMgCm2 <= 0) return false;
+  const remaining = remainingAppliedThicknessMgCm2(
+    application.appliedThicknessMgCm2,
+    minutesElapsed,
+    application.wearCondition
+  );
+  return remaining / application.appliedThicknessMgCm2 < REAPPLY_THRESHOLD_FRACTION;
 }

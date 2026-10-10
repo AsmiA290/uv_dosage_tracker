@@ -26,29 +26,29 @@ const PIPELINE_STEPS = [
     formula: "E (W/m²) = UVI × 0.025",
   },
   {
-    title: "3. Apply your personal exposure ratio",
+    title: "3. Apply the exposure ratio for your most exposed skin",
     explanation:
-      "A standing person's face/neck/shoulders receive only a fraction of the ambient horizontal UV a flat sensor would measure — and that fraction shifts with your ground surface's reflectivity (albedo).",
-    formula: "personalUVI = ambientUVI × PER × (1 + 0.5 × (albedo[surface] − albedo[grass]))",
+      "Sunburn shows up first on upward-facing skin: the top of the head, shoulders, and nose. Those spots catch most of the UV a flat sensor measures (about 80%, range 60-100%), more on bright ground like sand or snow. Using a whole-body average instead would make burn times look about twice as long as they really are.",
+    formula: "personalUVI = ambientUVI × ER × (1 + 0.5 × (albedo[surface] − albedo[grass]))\nER ≈ 0.8 (0.6–1.0)",
   },
   {
     title: "4. Apply sunscreen attenuation",
     explanation:
-      "Labeled SPF assumes a thick, even 2.0 mg/cm² layer. Real application is usually thinner, and protection falls off exponentially — not proportionally — as the layer thins or wears off over time.",
+      "Labeled SPF assumes a thick, even 2.0 mg/cm² layer. Real application is usually thinner, and the layer wears off over time (faster with sweat or water). Studies disagree on exactly how protection falls with a thinner layer; the app uses the more cautious exponential model.",
     formula:
-      "effectiveSPF = labeledSPF^(thickness / 2.0) × 0.5^(minutesElapsed / halfLife)\nprotection = 1 / effectiveSPF",
+      "thickness(t) = applied × 0.5^(minutesElapsed / halfLife)\neffectiveSPF = labeledSPF^(thickness(t) / 2.0)\nprotection = 1 / effectiveSPF",
   },
   {
     title: "5. Integrate cumulative dose",
     explanation:
-      "Your personal irradiance curve is integrated over time (trapezoidal rule) into joules per square meter, then expressed in Standard Erythema Dose units.",
-    formula: "Dose (SED) = ∫ E(t) dt ÷ 100 J/m²",
+      "Your personal irradiance curve is integrated over time (trapezoidal rule) into joules per square meter, then expressed in Standard Erythema Dose units. Dose from sessions saved earlier the same day is added, because sunburn builds up over the whole day.",
+    formula: "Dose (SED) = ∫ E(t) dt ÷ 100 J/m²\ndayDose = this session + earlier sessions today",
   },
   {
     title: "6. Compare to your burn threshold",
     explanation:
-      "Your Fitzpatrick skin type maps to a Minimal Erythema Dose (MED) range — the dose at which reddening begins. Remaining budget is just the gap between the two.",
-    formula: "remainingBudget = MEDthreshold − cumulativeDose",
+      "Your Fitzpatrick skin type maps to a Minimal Erythema Dose (MED) range, the dose at which reddening begins. Remaining budget is the gap between the two. A Monte Carlo simulation (2,000 runs varying your MED, the forecast, and the exposure ratio) gives a range of burn times; the headline shows the earliest likely one (10th percentile).",
+    formula: "remainingBudget = MEDthreshold − dayDose",
   },
 ] as const;
 
@@ -59,10 +59,10 @@ const SECTIONS: { title: string; keys: string[] }[] = [
   { title: "Dose definitions", keys: ["uviDefinition", "sedDefinition"] },
   { title: "Skin type & MED", keys: ["fitzpatrickScale", "medRangesByType"] },
   {
-    title: "Atmospheric corrections",
+    title: "Clouds, ground, and body position",
     keys: ["cloudModificationFactor", "surfaceAlbedo", "personalExposureRatio"],
   },
-  { title: "Sunscreen", keys: ["sunscreenApplicationThickness"] },
+  { title: "Sunscreen", keys: ["sunscreenApplicationThickness", "sunscreenWearOff"] },
   { title: "Solar geometry & forecast uncertainty", keys: ["solarPosition", "forecastUncertainty"] },
 ];
 
@@ -120,6 +120,22 @@ export default function MethodsPage() {
         </Button>
       </header>
 
+      <section className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5">
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">How to read the estimate</h2>
+        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-[var(--muted-foreground)]">
+          <li>
+            The headline time is the <strong className="font-medium text-[var(--foreground)]">earliest likely</strong>{" "}
+            point you could reach your burn threshold, so you are warned early rather than on average.
+          </li>
+          <li>Estimates are for your most exposed skin (top of head, shoulders, nose), where sunburn shows up first.</li>
+          <li>Dose from every saved session on the same day is added together.</li>
+          <li>
+            Staying under your burn threshold is not the same as no damage. UV causes DNA damage in skin cells below
+            the dose that turns skin red, so shade, clothing, hats, and sunscreen still matter.
+          </li>
+        </ul>
+      </section>
+
       {SECTIONS.map((section) => (
         <section key={section.title} className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
@@ -139,7 +155,7 @@ export default function MethodsPage() {
           How this app defines your personal dose
         </h2>
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-          Six steps, run in order, turn a plain forecast into your running dose and remaining budget. Each
+          Six steps, run in order, turn a plain forecast into your running dose, remaining budget, and burn-time range. Each
           step&apos;s formula pulls straight from the constants and citations above.
         </p>
         <ol className="flex flex-col gap-0">

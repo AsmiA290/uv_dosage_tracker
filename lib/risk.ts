@@ -1,0 +1,41 @@
+import type { DoseEstimate } from "@/lib/dose/types";
+import type { RiskLevel } from "@/components/ui/stat-tile";
+
+/**
+ * One risk rule for the whole app, so the badge, gauge color, and headline
+ * can never disagree. It is driven by the EARLIEST LIKELY burn time (p10 of
+ * the Monte Carlo run), not by remaining budget alone: a full budget can
+ * still disappear in 20 minutes at midday UV.
+ */
+export function riskFromEstimate(estimate: DoseEstimate): { level: RiskLevel; label: string } {
+  if (estimate.remainingBudgetSED.nominal <= 0) return { level: "high", label: "Threshold reached" };
+  const p10 = estimate.timeToThreshold.p10Minutes;
+  if (!Number.isFinite(p10)) return { level: "low", label: "Low risk" };
+  if (p10 <= 30) return { level: "high", label: "High risk" };
+  if (p10 <= 90) return { level: "medium", label: "Moderate risk" };
+  return { level: "low", label: "Low risk" };
+}
+
+/** "45 min" or "1 h 20 min". */
+export function formatMinutes(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest === 0 ? `${h} h` : `${h} h ${rest} min`;
+}
+
+/** Fraction (0-1) of today's nominal burn-threshold budget still unused. */
+export function budgetFractionLeft(estimate: DoseEstimate): number {
+  const med = estimate.medThresholdSED.nominal;
+  return med > 0 ? Math.max(0, estimate.remainingBudgetSED.nominal / med) : 0;
+}
+
+/** EPA UV Index category word, for plain-language display next to the number. */
+export function uvCategory(uvIndex: number): string {
+  if (uvIndex < 3) return "Low";
+  if (uvIndex < 6) return "Moderate";
+  if (uvIndex < 8) return "High";
+  if (uvIndex < 11) return "Very high";
+  return "Extreme";
+}
