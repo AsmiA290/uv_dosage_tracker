@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle, Clock, LocateFixed, MapPin, Plus } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { activeSPFAtTime, shouldReapply } from "@/lib/dose/sunscreen";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
@@ -10,7 +10,6 @@ import type {
   DoseEstimate,
   FitzpatrickType,
   HourlyUVSample,
-  Interval,
   PostureType,
   SunscreenApplication,
   SurfaceType,
@@ -23,16 +22,25 @@ import {
   insertSunscreenApplicationRow,
 } from "@/lib/local/sessions";
 import { fetchProfile } from "@/lib/local/profile";
+import {
+  loadInProgressSession,
+  saveInProgressSession,
+  type InProgressSession,
+  type SessionLocation,
+  type SessionSetup,
+} from "@/lib/local/active-session";
 import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
-import { budgetFractionLeft, riskFromEstimate } from "@/lib/risk";
+import { budgetFractionLeft, formatMinutes, riskFromEstimate } from "@/lib/risk";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
-const FALLBACK_LAT = 39.78;
-const FALLBACK_LON = -89.65;
+const FALLBACK_LOCATION: SessionLocation = { latitude: 39.78, longitude: -89.65, label: "Springfield, IL" };
+
+/** After this long, gently ask whether the user forgot to end the session. */
+const LONG_SESSION_MINUTES = 8 * 60;
 
 const THICKNESS_OPTIONS = [
   { label: "Light dab", value: 0.5 },
@@ -47,26 +55,11 @@ const POSTURE_OPTIONS: { value: PostureType; label: string }[] = [
   { value: "activeSport", label: "Active sport" },
 ];
 
-type SetupState = {
-  fitzpatrickType: FitzpatrickType;
-  surface: SurfaceType;
-  posture: PostureType;
-  spf: string;
-  thickness: number;
-};
+type SetupState = SessionSetup;
 
-type ActiveSession = {
-  id: string;
-  startedAt: Date;
-  setup: SetupState;
-  applications: SunscreenApplication[];
-  note: string;
-  /** Dose already logged earlier today, carried into this session's budget. */
-  priorDose: Interval;
-};
-
-type EndedSession = ActiveSession & { endedAt: Date; estimate: DoseEstimate };
-
+/** A running session (no endedAt) or one that has ended but isn't saved yet. */
+type ActiveSession = InProgressSession;
+type EndedSession = InProgressSession & { endedAt: Date };
 
 export default function SessionPage() {
   const [phase, setPhase] = useState<"idle" | "active" | "ended">("idle");
@@ -84,7 +77,13 @@ export default function SessionPage() {
     spf: "",
     thickness: 1.0,
   });
-  const [location, setLocation] = useState({ latitude: FALLBACK_LAT, longitude: FALLBACK_LON });
+  const [homeLocation, setHomeLocation] = useState<SessionLocation>(FALLBACK_LOCATION);
+  const [location, setLocation] = useState<SessionLocation>(FALLBACK_LOCATION);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  // True once we've checked storage for an unfinished session, so the
+  // persistence effect below never wipes it before it has been restored.
+  const [restored, setRestored] = useState(false);
   const [addingSunscreen, setAddingSunscreen] = useState(false);
   const [addSpf, setAddSpf] = useState("");
   const [addThickness, setAddThickness] = useState(1.0);
@@ -107,16 +106,79 @@ export default function SessionPage() {
           posture: profile.defaultPosture ?? prev.posture,
         }));
         if (profile.homeLat !== null && profile.homeLon !== null) {
-          setLocation({ latitude: profile.homeLat, longitude: profile.homeLon });
+          const home = { latitude: profile.homeLat, longitude: profile.homeLon, label: profile.homeLabel ?? "Home" };
+          setHomeLocation(home);
+          setLocation(home);
         }
       })
-      .catch((err) => console.error("[v0] Failed to load profile:", err));
+      .catch((err) => console.error("[v0] Failed to load profile:", err))
+      .finally(() => {
+        // Restore an unfinished session last, so its location wins over home.
+        const saved = loadInProgressSession();
+        if (saved) {
+          setLocation(saved.location);
+          if (saved.endedAt) {
+            setEnded({ ...saved, endedAt: saved.endedAt });
+            setPhase("ended");
+          } else {
+            setActive(saved);
+            setNow(new Date());
+            setPhase("active");
+          }
+        }
+        setRestored(true);
+      });
   }, []);
+
+  // Keep the unfinished session in storage so a reload or a discarded
+  // background tab never loses dose the user actually received.
+  useEffect(() => {
+    if (!restored) return;
+    saveInProgressSession(active ?? ended ?? null);
+  }, [restored, active, ended]);
+
+  // Recompute right away when the user returns to the tab, instead of
+  // waiting up to a minute for the next tick.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setNow(new Date());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  function pickCurrentLocation() {
+    if (!("geolocation" in navigator)) {
+      setLocationError("Location isn't available in this browser.");
+      return;
+    }
+    setLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setSamples(null);
+        setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: "Current location" });
+        setLocating(false);
+      },
+      () => {
+        setLocationError("Couldn't get your location, so your home location is used.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60_000 },
+    );
+  }
+
+  function pickHomeLocation() {
+    setSamples(null);
+    setLocation(homeLocation);
+    setLocationError(null);
+  }
 
   // Forecast is reused across the active session; the dose engine only
   // needs samples spanning sessionStart..now, and Open-Meteo returns a
   // multi-day hourly forecast that comfortably covers that.
   useEffect(() => {
+    setForecastError(null);
     fetchOpenMeteoForecastClient(location.latitude, location.longitude)
       .then(setSamples)
       .catch((err) => setForecastError(err instanceof Error ? err.message : "Forecast unavailable."));
@@ -147,8 +209,8 @@ export default function SessionPage() {
     if (!samples || !active) return null;
     return computeDoseEstimate({
       fitzpatrickType: active.setup.fitzpatrickType,
-      latitude: location.latitude,
-      longitude: location.longitude,
+      latitude: active.location.latitude,
+      longitude: active.location.longitude,
       surface: active.setup.surface,
       posture: active.setup.posture,
       hourlySamples: samples,
@@ -157,7 +219,25 @@ export default function SessionPage() {
       sunscreenApplications: active.applications,
       priorDoseTodaySED: active.priorDose,
     });
-  }, [samples, active, now, location.latitude, location.longitude]);
+  }, [samples, active, now]);
+
+  // The summary is recomputed from the stored session (not stored itself),
+  // so it also works after a reload on the summary screen.
+  const endedEstimate = useMemo<DoseEstimate | null>(() => {
+    if (!samples || !ended) return null;
+    return computeDoseEstimate({
+      fitzpatrickType: ended.setup.fitzpatrickType,
+      latitude: ended.location.latitude,
+      longitude: ended.location.longitude,
+      surface: ended.setup.surface,
+      posture: ended.setup.posture,
+      hourlySamples: samples,
+      sessionStart: ended.startedAt,
+      now: ended.endedAt,
+      sunscreenApplications: ended.applications,
+      priorDoseTodaySED: ended.priorDose,
+    });
+  }, [samples, ended]);
 
   const reapplyNeeded = useMemo(() => {
     if (!active || active.applications.length === 0) return false;
@@ -192,7 +272,7 @@ export default function SessionPage() {
       }
 
       const priorDose = await fetchPriorDoseToday(startedAt);
-      setActive({ id: sessionId, startedAt, setup, applications, note: "", priorDose });
+      setActive({ id: sessionId, startedAt, setup, applications, note: "", priorDose, location });
       setNow(new Date());
       setPhase("active");
     } catch (error: unknown) {
@@ -223,14 +303,14 @@ export default function SessionPage() {
   }
 
   function handleEnd() {
-    if (!active || !estimate) return;
-    setEnded({ ...active, endedAt: new Date(), estimate });
+    if (!active) return;
+    setEnded({ ...active, endedAt: new Date() });
     setActive(null);
     setPhase("ended");
   }
 
   async function handleSave() {
-    if (!ended) return;
+    if (!ended || !endedEstimate) return;
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -240,7 +320,7 @@ export default function SessionPage() {
         endedAt: ended.endedAt,
         surface: ended.setup.surface,
         fitzpatrickType: ended.setup.fitzpatrickType,
-        estimate: ended.estimate,
+        estimate: endedEstimate,
         note: ended.note,
       });
       resetToIdle();
@@ -257,10 +337,25 @@ export default function SessionPage() {
     setPhase("idle");
   }
 
-  if (phase === "ended" && ended) {
+  if (phase === "ended" && ended && !endedEstimate) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-8 pb-28">
+        <h1 className="text-lg font-semibold">Session summary</h1>
+        {forecastError ? (
+          <p className="rounded-[var(--radius)] border border-[var(--risk-medium)]/30 bg-[var(--risk-medium)]/10 p-3 text-sm text-[var(--foreground)]">
+            {forecastError} Your session is kept on this device; reopen this screen when you have signal to save it.
+          </p>
+        ) : (
+          <div className="h-48 animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+        )}
+      </main>
+    );
+  }
+
+  if (phase === "ended" && ended && endedEstimate) {
     const budgetFraction =
-      ended.estimate.medThresholdSED.nominal > 0
-        ? ended.estimate.remainingBudgetSED.nominal / ended.estimate.medThresholdSED.nominal
+      endedEstimate.medThresholdSED.nominal > 0
+        ? endedEstimate.remainingBudgetSED.nominal / endedEstimate.medThresholdSED.nominal
         : 0;
     const durationMin = Math.round((ended.endedAt.getTime() - ended.startedAt.getTime()) / 60_000);
     const overBudget = budgetFraction <= 0;
@@ -276,9 +371,9 @@ export default function SessionPage() {
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
             <span>This session</span>
             <UncertaintyRange
-              low={ended.estimate.sessionDoseSED.low}
-              nominal={ended.estimate.sessionDoseSED.nominal}
-              high={ended.estimate.sessionDoseSED.high}
+              low={endedEstimate.sessionDoseSED.low}
+              nominal={endedEstimate.sessionDoseSED.nominal}
+              high={endedEstimate.sessionDoseSED.high}
               unit="SED"
               size="sm"
             />
@@ -286,9 +381,9 @@ export default function SessionPage() {
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
             <span>Today so far</span>
             <UncertaintyRange
-              low={ended.estimate.cumulativeDoseSED.low}
-              nominal={ended.estimate.cumulativeDoseSED.nominal}
-              high={ended.estimate.cumulativeDoseSED.high}
+              low={endedEstimate.cumulativeDoseSED.low}
+              nominal={endedEstimate.cumulativeDoseSED.nominal}
+              high={endedEstimate.cumulativeDoseSED.high}
               unit="SED"
               size="sm"
             />
@@ -296,9 +391,9 @@ export default function SessionPage() {
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
             <span>Budget left today</span>
             <UncertaintyRange
-              low={ended.estimate.remainingBudgetSED.low}
-              nominal={ended.estimate.remainingBudgetSED.nominal}
-              high={ended.estimate.remainingBudgetSED.high}
+              low={endedEstimate.remainingBudgetSED.low}
+              nominal={endedEstimate.remainingBudgetSED.nominal}
+              high={endedEstimate.remainingBudgetSED.high}
               unit="SED"
               size="sm"
             />
@@ -349,6 +444,7 @@ export default function SessionPage() {
     const budgetFraction = estimate ? budgetFractionLeft(estimate) : 0;
     const risk = estimate ? riskFromEstimate(estimate).level : "low";
     const elapsedMin = Math.round((now.getTime() - active.startedAt.getTime()) / 60_000);
+    const uvNow = estimate?.minuteSeries.at(-1)?.ambientUvIndex;
     const currentSpf = active.applications.length > 0 ? activeSPFAtTime(active.applications, now) : null;
 
     return (
@@ -358,7 +454,11 @@ export default function SessionPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
               Elapsed
             </p>
-            <p className="hero-number text-3xl font-semibold">{elapsedMin} min</p>
+            <p className="hero-number text-3xl font-semibold">{formatMinutes(elapsedMin)}</p>
+            <p className="mt-1 flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+              <MapPin className="size-3" aria-hidden="true" />
+              {active.location.label}
+            </p>
           </div>
           <Button
             variant="destructive"
@@ -369,6 +469,16 @@ export default function SessionPage() {
             End Session
           </Button>
         </header>
+
+        {elapsedMin >= LONG_SESSION_MINUTES && (
+          <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <Clock className="mt-0.5 size-4 shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
+            <p className="text-sm text-[var(--foreground)]">
+              This session has been running for {formatMinutes(elapsedMin)}. If you&apos;ve gone inside, end it so
+              your total stays accurate.
+            </p>
+          </div>
+        )}
 
         {reapplyNeeded && (
           <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-[var(--risk-medium)]/30 bg-[var(--risk-medium)]/10 p-4">
@@ -391,7 +501,7 @@ export default function SessionPage() {
 
         {estimate && (
           <div className="glass-panel flex flex-col items-center gap-5 rounded-[calc(var(--radius)+10px)] px-6 py-6">
-            <BurnTimeHeadline estimate={estimate} lead="Staying out, you could burn in as little as" />
+            <BurnTimeHeadline estimate={estimate} lead="Staying out, you could burn in as little as" now={now} uvNow={uvNow} />
             <RadialGaugeShell title="Today's burn budget left" fraction={budgetFraction} riskLevel={risk} size={168}>
               <span className="hero-number text-4xl font-semibold text-[var(--foreground)]">
                 {Math.round(budgetFraction * 100)}%
@@ -492,6 +602,30 @@ export default function SessionPage() {
           {forecastError}
         </p>
       )}
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">Location</legend>
+        <div className="glass-panel-solid flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5">
+          <span className="flex min-w-0 items-center gap-2 text-sm">
+            <MapPin className="size-4 shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
+            <span className="truncate">{location.label}</span>
+          </span>
+          {location.label === "Current location" ? (
+            <Button type="button" variant="outline" size="sm" onClick={pickHomeLocation}>
+              Use home
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={pickCurrentLocation} disabled={locating} className="gap-1.5">
+              <LocateFixed className="size-3.5" aria-hidden="true" />
+              {locating ? "Locating…" : "Use where I am"}
+            </Button>
+          )}
+        </div>
+        {locationError && <p className="text-xs text-[var(--risk-medium)]">{locationError}</p>}
+        <p className="text-xs text-[var(--muted-foreground)]">
+          At an away game or job site? Use where you are so the forecast matches.
+        </p>
+      </fieldset>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">Skin type</legend>
