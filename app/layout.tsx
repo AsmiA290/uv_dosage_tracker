@@ -13,6 +13,13 @@ export const metadata: Metadata = {
   description:
     "Personal UV dose tracking for outdoor workers and athletes in central Illinois: a radiation badge for sunlight. Educational use only; not a diagnostic tool.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 // Light-first by design: this app is read outdoors in direct sunlight, so
