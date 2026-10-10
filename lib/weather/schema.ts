@@ -8,7 +8,8 @@ import { z } from "zod";
  * https://open-meteo.com/en/docs
  */
 export const OpenMeteoHourlySchema = z.object({
-  time: z.array(z.string()),
+  /** Unix timestamps in seconds (UTC); requested via timeformat=unixtime. */
+  time: z.array(z.number()),
   uv_index: z.array(z.number().nullable()),
   uv_index_clear_sky: z.array(z.number().nullable()),
   cloud_cover: z.array(z.number().nullable()).optional(),
