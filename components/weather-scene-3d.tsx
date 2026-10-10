@@ -124,35 +124,71 @@ function RainScene({ uvIndex, intensityMm, reducedMotion }: { uvIndex: number; i
   )
 }
 
-/** Clouds: clusters of overlapping/intersecting toruses that drift sideways and bob slowly. */
+/**
+ * One fluffy cumulus cloud: a loose blob of overlapping, irregularly-scaled
+ * low-poly spheres (a "puff cluster"). Puffs pile up toward the center and
+ * get smaller toward the edges, like a real cumulus cloud's billowing
+ * silhouette, and are flattened slightly on Y so the cluster reads as a
+ * cloud rather than a pile of balls. A second, slightly lower and
+ * darker-tinted layer of the same puffs fakes ambient-occlusion shading on
+ * the cloud's underside without needing real shadow mapping.
+ */
+function makeCloudPuffs(seed: number) {
+  const rand = mulberry32(seed)
+  const count = 8 + Math.floor(rand() * 4) // 8-11 puffs per cloud, packed tight so they fuse into one mass
+  return Array.from({ length: count }, (_, i) => {
+    const edgeFalloff = i === 0 ? 0 : Math.pow(rand(), 1.4) // bias toward the center so puffs overlap heavily
+    const angle = rand() * Math.PI * 2
+    const radius = edgeFalloff * 0.85
+    const puffScale = 0.6 + (1 - edgeFalloff) * 0.7 + rand() * 0.15
+    return {
+      // Flatter, wider base and a taller dome on top — real cumulus silhouette.
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius * 0.35 + (1 - edgeFalloff) * 0.2 + (rand() - 0.5) * 0.12,
+      z: (rand() - 0.5) * 0.45,
+      scale: puffScale,
+    }
+  })
+}
+
+/** Deterministic PRNG so cloud shapes are stable across renders (no reshuffling every frame). */
+function mulberry32(seed: number) {
+  let a = seed
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Clouds: fluffy cumulus-style puff clusters that drift sideways and bob slowly. */
 function CloudsScene({ uvIndex, cloudCoverPct, reducedMotion }: { uvIndex: number; cloudCoverPct: number; reducedMotion: boolean }) {
   const factor = uvFactor(uvIndex)
   const groupRefs = useRef<Array<THREE.Group | null>>([])
   const clusters = useMemo(
     () =>
       Array.from({ length: 4 }, (_, i) => ({
-        baseX: -7 + i * 4.2,
-        baseY: 0.8 + (i % 2) * 1.6,
-        baseZ: -3 - (i % 3) * 0.6,
-        toruses: Array.from({ length: 3 }, (_, j) => ({
-          x: j * 0.55 - 0.55,
-          rotY: (j / 3) * Math.PI,
-          r: 0.55 + j * 0.12,
-        })),
+        baseX: -8 + i * 4.6,
+        baseY: 0.6 + (i % 2) * 1.8,
+        baseZ: -3 - (i % 3) * 0.7,
+        driftSpeed: 0.28 + (i % 3) * 0.08,
+        bulk: 0.9 + (i % 2) * 0.35,
+        puffs: makeCloudPuffs(i * 97 + 11),
       })),
     []
   )
-  const opacity = Math.min(0.92, 0.32 + cloudCoverPct / 140)
+  const opacity = Math.min(0.95, 0.4 + cloudCoverPct / 130)
 
   useFrame((state, delta) => {
     const dt = reducedMotion ? 0 : delta
     clusters.forEach((cluster, i) => {
       const group = groupRefs.current[i]
       if (!group) return
-      group.position.x += dt * 0.35 * factor
-      if (group.position.x > 9) group.position.x = -9
-      group.position.y = cluster.baseY + Math.sin(state.clock.elapsedTime * 0.35 + i) * 0.25
-      group.rotation.y += dt * 0.04 * factor
+      group.position.x += dt * cluster.driftSpeed * factor
+      if (group.position.x > 10) group.position.x = -10
+      group.position.y = cluster.baseY + Math.sin(state.clock.elapsedTime * 0.3 + i * 1.7) * 0.22
     })
   })
 
@@ -165,11 +201,20 @@ function CloudsScene({ uvIndex, cloudCoverPct, reducedMotion }: { uvIndex: numbe
             groupRefs.current[i] = el
           }}
           position={[cluster.baseX, cluster.baseY, cluster.baseZ]}
+          scale={cluster.bulk}
         >
-          {cluster.toruses.map((t, j) => (
-            <mesh key={j} position={[t.x, 0, 0]} rotation={[Math.PI / 2, t.rotY, 0]}>
-              <torusGeometry args={[t.r, t.r * 0.45, 16, 32]} />
-              <meshStandardMaterial color="#f1f5f9" roughness={1} transparent opacity={opacity} />
+          {/* Underside shading layer: same puffs, offset down/back, darker and duller — fakes ambient occlusion. */}
+          {cluster.puffs.map((p, j) => (
+            <mesh key={`shade-${j}`} position={[p.x, p.y - 0.22, p.z - 0.12]} scale={[p.scale, p.scale * 0.8, p.scale]}>
+              <sphereGeometry args={[0.8, 14, 10]} />
+              <meshStandardMaterial color="#b8c2cf" roughness={1} transparent opacity={opacity * 0.55} />
+            </mesh>
+          ))}
+          {/* Main lit puffs. */}
+          {cluster.puffs.map((p, j) => (
+            <mesh key={`puff-${j}`} position={[p.x, p.y, p.z]} scale={[p.scale, p.scale * 0.82, p.scale]}>
+              <sphereGeometry args={[0.8, 18, 14]} />
+              <meshStandardMaterial color="#fdfdfe" roughness={0.9} transparent opacity={opacity} />
             </mesh>
           ))}
         </group>

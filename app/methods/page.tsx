@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { UserCog } from "lucide-react";
+import { HeartHandshake, UserCog } from "lucide-react";
 import { CITATIONS, type Citation } from "@/lib/dose/citations";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,12 +14,42 @@ const EPA_LEGEND = [
 ] as const;
 
 const PIPELINE_STEPS = [
-  "UV Index",
-  "Erythemal irradiance",
-  "Personal exposure ratio",
-  "Sunscreen attenuation",
-  "Cumulative dose (SED, Standard Erythema Dose)",
-  "Compared to your burn threshold (MED, Minimal Erythema Dose) range",
+  {
+    title: "1. Forecast UV Index",
+    explanation:
+      "Every hour, Open-Meteo reports an all-sky UV Index for your coordinates — already accounting for real cloud cover at that hour. We interpolate it to 1-minute resolution following the sun's elevation curve, not a straight line, so values near sunrise/sunset aren't over- or under-stated.",
+    formula: null,
+  },
+  {
+    title: "2. Convert to erythemal irradiance",
+    explanation: "UV Index is a unitless index; dose math needs actual power per area, so we convert first.",
+    formula: "E (W/m²) = UVI × 0.025",
+  },
+  {
+    title: "3. Apply your personal exposure ratio",
+    explanation:
+      "A standing person's face/neck/shoulders receive only a fraction of the ambient horizontal UV a flat sensor would measure — and that fraction shifts with your ground surface's reflectivity (albedo).",
+    formula: "personalUVI = ambientUVI × PER × (1 + 0.5 × (albedo[surface] − albedo[grass]))",
+  },
+  {
+    title: "4. Apply sunscreen attenuation",
+    explanation:
+      "Labeled SPF assumes a thick, even 2.0 mg/cm² layer. Real application is usually thinner, and protection falls off exponentially — not proportionally — as the layer thins or wears off over time.",
+    formula:
+      "effectiveSPF = labeledSPF^(thickness / 2.0) × 0.5^(minutesElapsed / halfLife)\nprotection = 1 / effectiveSPF",
+  },
+  {
+    title: "5. Integrate cumulative dose",
+    explanation:
+      "Your personal irradiance curve is integrated over time (trapezoidal rule) into joules per square meter, then expressed in Standard Erythema Dose units.",
+    formula: "Dose (SED) = ∫ E(t) dt ÷ 100 J/m²",
+  },
+  {
+    title: "6. Compare to your burn threshold",
+    explanation:
+      "Your Fitzpatrick skin type maps to a Minimal Erythema Dose (MED) range — the dose at which reddening begins. Remaining budget is just the gap between the two.",
+    formula: "remainingBudget = MEDthreshold − cumulativeDose",
+  },
 ] as const;
 
 // citations.ts has no explicit category field, so grouping is inferred here
@@ -77,6 +108,16 @@ export default function MethodsPage() {
           your logged sunscreen use. It does not assess, diagnose, or evaluate any skin condition, and it is
           not a medical device or medical advice.
         </p>
+        <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+          Weather data is fetched live from Open-Meteo for your exact coordinates every time you open the app
+          (cached at most 15 minutes) &mdash; never simulated or hardcoded.
+        </p>
+        <Button asChild variant="ghost" size="sm" className="w-fit gap-1.5 text-[var(--accent)]">
+          <Link href="/why">
+            <HeartHandshake className="size-3.5" aria-hidden="true" />
+            Why we built this &mdash; The Actinic Shield
+          </Link>
+        </Button>
       </header>
 
       {SECTIONS.map((section) => (
@@ -97,16 +138,28 @@ export default function MethodsPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
           How this app defines your personal dose
         </h2>
+        <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+          Six steps, run in order, turn a plain forecast into your running dose and remaining budget. Each
+          step&apos;s formula pulls straight from the constants and citations above.
+        </p>
         <ol className="flex flex-col gap-0">
           {PIPELINE_STEPS.map((step, i) => (
-            <li key={step} className="flex gap-3">
+            <li key={step.title} className="flex gap-3">
               <div className="flex flex-col items-center">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/10 text-xs font-semibold text-[var(--accent)]">
                   {i + 1}
                 </span>
                 {i < PIPELINE_STEPS.length - 1 && <span className="my-1 w-px flex-1 bg-[var(--border)]" />}
               </div>
-              <p className="pb-6 text-sm font-medium text-[var(--foreground)]">{step}</p>
+              <div className="flex flex-col gap-1.5 pb-6">
+                <p className="text-sm font-medium text-[var(--foreground)]">{step.title}</p>
+                <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">{step.explanation}</p>
+                {step.formula && (
+                  <pre className="whitespace-pre-wrap rounded-[var(--radius)] bg-[var(--foreground)]/5 px-3 py-2 font-mono text-xs leading-relaxed text-[var(--foreground)]">
+                    {step.formula}
+                  </pre>
+                )}
+              </div>
             </li>
           ))}
         </ol>
@@ -134,13 +187,29 @@ export default function MethodsPage() {
         </p>
       </section>
 
-      <footer className="glass-panel-solid rounded-[var(--radius)] p-5 text-center">
-        <p className="text-base font-semibold text-[var(--foreground)]">
-          Educational tool. Not a medical device.
-        </p>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Does not diagnose or assess skin conditions.
-        </p>
+      <footer className="glass-panel-solid flex flex-col items-center gap-4 rounded-[var(--radius)] p-5 text-center">
+        <div>
+          <p className="text-base font-semibold text-[var(--foreground)]">
+            Educational tool. Not a medical device.
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            Does not diagnose or assess skin conditions.
+          </p>
+        </div>
+        <Link href="/why" className="flex flex-col items-center gap-2">
+          <div className="rounded-lg bg-[#0b0e14] px-3 py-2">
+            <Image
+              src="/actinic-shield-logo.png"
+              alt="The Actinic Shield logo"
+              width={420}
+              height={100}
+              className="h-auto w-36"
+            />
+          </div>
+          <span className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline">
+            A program of The Actinic Shield
+          </span>
+        </Link>
       </footer>
     </main>
   );
