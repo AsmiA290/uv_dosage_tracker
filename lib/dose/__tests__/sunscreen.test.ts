@@ -36,7 +36,7 @@ describe("remainingAppliedThicknessMgCm2", () => {
   });
 
   it("halves after exactly one half-life", () => {
-    expect(remainingAppliedThicknessMgCm2(2.0, 150, "dry")).toBeCloseTo(1.0, 6);
+    expect(remainingAppliedThicknessMgCm2(2.0, 120, "dry")).toBeCloseTo(1.0, 6);
   });
 
   it("wears off faster while swimming than dry", () => {
@@ -95,6 +95,27 @@ describe("protectionMultiplier", () => {
 });
 
 describe("shouldReapply", () => {
+  it("does not flag a thin first layer the moment it is applied", () => {
+    const thin: SunscreenApplication = {
+      appliedAt: new Date("2026-06-15T14:00:00Z"),
+      labeledSPF: 30,
+      appliedThicknessMgCm2: 1.0,
+      wearCondition: "dry",
+    };
+    expect(shouldReapply(thin, new Date(thin.appliedAt.getTime() + 5 * 60_000))).toBe(false);
+  });
+
+  it("flags reapplication at about 2 hours in dry conditions", () => {
+    const applied: SunscreenApplication = {
+      appliedAt: new Date("2026-06-15T14:00:00Z"),
+      labeledSPF: 30,
+      appliedThicknessMgCm2: 2.0,
+      wearCondition: "dry",
+    };
+    expect(shouldReapply(applied, new Date(applied.appliedAt.getTime() + 110 * 60_000))).toBe(false);
+    expect(shouldReapply(applied, new Date(applied.appliedAt.getTime() + 125 * 60_000))).toBe(true);
+  });
+
   it("is false immediately after application", () => {
     const applied: SunscreenApplication = {
       appliedAt: new Date("2026-06-15T14:00:00Z"),

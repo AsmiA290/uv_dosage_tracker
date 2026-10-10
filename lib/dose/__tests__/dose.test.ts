@@ -49,9 +49,20 @@ describe("computeDoseEstimate", () => {
   });
 
   it("remaining budget shrinks as cumulative dose grows", () => {
-    const short = computeDoseEstimate(baseInput({ now: new Date("2026-06-15T18:30:00Z") }));
-    const long = computeDoseEstimate(baseInput({ now: new Date("2026-06-15T20:00:00Z") }));
+    // Type VI so the budget is not already exhausted at midday UV 9.
+    const short = computeDoseEstimate(baseInput({ fitzpatrickType: "VI", now: new Date("2026-06-15T18:30:00Z") }));
+    const long = computeDoseEstimate(baseInput({ fitzpatrickType: "VI", now: new Date("2026-06-15T20:00:00Z") }));
     expect(long.remainingBudgetSED.nominal).toBeLessThan(short.remainingBudgetSED.nominal);
+  });
+
+  it("dose logged earlier the same day is added to the day total and shrinks the budget", () => {
+    const fresh = computeDoseEstimate(baseInput({ fitzpatrickType: "VI" }));
+    const second = computeDoseEstimate(
+      baseInput({ fitzpatrickType: "VI", priorDoseTodaySED: { low: 1, nominal: 2, high: 3 } })
+    );
+    expect(second.sessionDoseSED.nominal).toBeCloseTo(fresh.sessionDoseSED.nominal, 8);
+    expect(second.cumulativeDoseSED.nominal).toBeCloseTo(fresh.cumulativeDoseSED.nominal + 2, 8);
+    expect(second.remainingBudgetSED.nominal).toBeLessThan(fresh.remainingBudgetSED.nominal);
   });
 
   it("a higher Fitzpatrick type yields a larger MED threshold and more remaining budget", () => {
