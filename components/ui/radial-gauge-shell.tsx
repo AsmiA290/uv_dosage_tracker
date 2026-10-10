@@ -55,14 +55,6 @@ export function RadialGaugeShell({
         </span>
       )}
       <div className="relative" style={{ width: size, height: size }}>
-        {/* Glass sheen behind the ring — a soft highlight, like light on a curved lens. */}
-        <div
-          className="absolute inset-0 rounded-full"
-          aria-hidden="true"
-          style={{
-            background: "radial-gradient(circle at 32% 22%, rgba(255,255,255,0.55), transparent 62%)",
-          }}
-        />
         <svg
           viewBox={`0 0 ${size} ${size}`}
           width={size}
@@ -76,7 +68,7 @@ export function RadialGaugeShell({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="color-mix(in srgb, white 55%, var(--border))"
+            stroke="var(--border)"
             strokeWidth={strokeWidth}
           />
           <circle
@@ -89,10 +81,7 @@ export function RadialGaugeShell({
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
-            style={{
-              transition: "stroke-dashoffset 400ms ease-out",
-              filter: `drop-shadow(0 0 10px color-mix(in srgb, ${RISK_COLOR[riskLevel]} 55%, transparent))`,
-            }}
+            style={{ transition: "stroke-dashoffset 400ms ease-out" }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center">

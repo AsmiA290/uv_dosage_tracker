@@ -7,6 +7,8 @@ interface WeatherSkyProps {
   cloudCoverPct: number
   /** Local hour, 0-23. Drives the sky gradient and the sun's height. */
   hour: number
+  /** Fade the bottom edge into the page background (full-bleed use). Off for contained banners. */
+  fadeBottom?: boolean
   className?: string
 }
 
@@ -38,7 +40,7 @@ const SUN_TOP: Record<TimeOfDay, string> = {
  * server component tree. `prefers-reduced-motion` disables the drift/pulse
  * animations globally (see globals.css).
  */
-export function WeatherSky({ uvIndex, cloudCoverPct, hour, className }: WeatherSkyProps) {
+export function WeatherSky({ uvIndex, cloudCoverPct, hour, fadeBottom = true, className }: WeatherSkyProps) {
   const tod = timeOfDay(hour)
   const showSun = tod !== "night" && uvIndex > 0
   const cloudCover = Math.min(100, Math.max(0, cloudCoverPct))
@@ -79,7 +81,9 @@ export function WeatherSky({ uvIndex, cloudCoverPct, hour, className }: WeatherS
         />
       ))}
 
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--background)]" />
+      {fadeBottom && (
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--background)]" />
+      )}
     </div>
   )
 }
