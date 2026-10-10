@@ -22,10 +22,19 @@ import { Button } from "@/components/ui/button";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import type { RiskLevel } from "@/components/ui/stat-tile";
 
+// Recharts writes colors into SVG presentation attributes (fill="..."),
+// where CSS custom properties like var(--risk-low) are not resolved, so
+// the bars and lines rendered invisibly. Charts use literal hex values that
+// mirror the tokens in globals.css.
 const RISK_HEX: Record<RiskLevel, string> = {
-  low: "var(--risk-low)",
-  medium: "var(--risk-medium)",
-  high: "var(--risk-high)",
+  low: "#166534",
+  medium: "#b45309",
+  high: "#b91c1c",
+};
+const CHART = {
+  accent: "#0f766e",
+  muted: "#52525b",
+  grid: "#e4e4e7",
 };
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -73,27 +82,38 @@ function buildWeekData(sessions: HistoricalSession[]) {
   }));
 }
 
-function buildTrendData(sessions: HistoricalSession[]) {
-  const byDay = new Map<string, number>();
-  for (const s of sessions) {
-    const key = new Date(s.startedAt).toISOString().slice(0, 10);
-    byDay.set(key, (byDay.get(key) ?? 0) + s.cumulativeDoseSED.nominal);
-  }
-  const sortedDays = Array.from(byDay.entries()).sort(([a], [b]) => a.localeCompare(b));
+/** Local calendar-day key (YYYY-MM-DD) — NOT toISOString(), which uses the UTC date. */
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
-  let rolling7: number[] = [];
-  let rolling30: number[] = [];
-  return sortedDays.map(([day, dose], i) => {
-    rolling7.push(dose);
-    rolling30.push(dose);
-    if (rolling7.length > 7) rolling7.shift();
-    if (rolling30.length > 30) rolling30.shift();
-    return {
-      day: new Date(day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      sevenDay: Number(rolling7.reduce((a, b) => a + b, 0).toFixed(2)),
-      thirtyDay: Number(rolling30.reduce((a, b) => a + b, 0).toFixed(2)),
-    };
-  });
+/**
+ * Rolling 7- and 30-day dose totals over CALENDAR days (days with no
+ * sessions count as zero), for each day that has a session.
+ */
+function buildTrendData(sessions: HistoricalSession[]) {
+  const byDay = new Map<string, { date: Date; dose: number }>();
+  for (const s of sessions) {
+    const started = new Date(s.startedAt);
+    const key = localDayKey(started);
+    const date = new Date(started.getFullYear(), started.getMonth(), started.getDate());
+    const entry = byDay.get(key) ?? { date, dose: 0 };
+    entry.dose += s.cumulativeDoseSED.nominal;
+    byDay.set(key, entry);
+  }
+  const days = Array.from(byDay.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const windowTotal = (end: Date, nDays: number) => {
+    const start = new Date(end);
+    start.setDate(start.getDate() - (nDays - 1));
+    return days
+      .filter((d) => d.date.getTime() >= start.getTime() && d.date.getTime() <= end.getTime())
+      .reduce((sum, d) => sum + d.dose, 0);
+  };
+  return days.map(({ date }) => ({
+    day: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    sevenDay: Number(windowTotal(date, 7).toFixed(2)),
+    thirtyDay: Number(windowTotal(date, 30).toFixed(2)),
+  }));
 }
 
 function SessionRow({ session }: { session: HistoricalSession }) {
@@ -188,10 +208,10 @@ export default function HistoryPage() {
         <h2 className="text-sm font-medium text-[var(--muted-foreground)]">This week</h2>
         <div className="glass-panel-solid h-56 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weekData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={30} />
+            <BarChart data={weekData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: CHART.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: CHART.muted }} axisLine={false} tickLine={false} width={34} allowDecimals domain={[0, (max: number) => Math.ceil(Math.max(max, weekThreshold) * 1.15)]} />
               <Tooltip
                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number) => [`${value.toFixed(2)} SED`, "Dose"]}
@@ -199,12 +219,12 @@ export default function HistoryPage() {
               {weekThreshold > 0 && (
                 <ReferenceLine
                   y={weekThreshold}
-                  stroke="var(--muted-foreground)"
+                  stroke={CHART.muted}
                   strokeDasharray="4 4"
-                  label={{ value: "MED", position: "insideTopRight", fontSize: 10, fill: "var(--muted-foreground)" }}
+                  label={{ value: "MED", position: "insideTopRight", fontSize: 10, fill: CHART.muted }}
                 />
               )}
-              <Bar dataKey="dose" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="dose" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                 {weekData.map((d, i) => (
                   <Cell key={i} fill={RISK_HEX[d.risk]} />
                 ))}
@@ -225,15 +245,15 @@ export default function HistoryPage() {
         <h2 className="text-sm font-medium text-[var(--muted-foreground)]">Cumulative trend</h2>
         <div className="glass-panel-solid h-48 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={30} />
+            <AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: CHART.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: CHART.muted }} axisLine={false} tickLine={false} width={34} allowDecimals />
               <Tooltip
                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
               />
-              <Area type="monotone" dataKey="thirtyDay" stroke="var(--muted-foreground)" fill="var(--muted-foreground)" fillOpacity={0.08} strokeWidth={1.5} name="30-day total" />
-              <Area type="monotone" dataKey="sevenDay" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.15} strokeWidth={2} name="7-day total" />
+              <Area isAnimationActive={false} type="monotone" dataKey="thirtyDay" stroke={CHART.muted} fill={CHART.muted} fillOpacity={0.08} strokeWidth={1.5} name="30-day total" />
+              <Area isAnimationActive={false} type="monotone" dataKey="sevenDay" stroke={CHART.accent} fill={CHART.accent} fillOpacity={0.15} strokeWidth={2} name="7-day total" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
