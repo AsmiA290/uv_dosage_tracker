@@ -93,6 +93,12 @@ export interface DoseEstimateInput {
   now: Date;
   /** Optional sunscreen application history during the session. */
   sunscreenApplications?: SunscreenApplication[];
+  /**
+   * Dose already logged earlier the same day in other saved sessions, SED.
+   * Erythema builds up over the whole day, so a second outing starts from
+   * this total rather than from zero. Defaults to zero.
+   */
+  priorDoseTodaySED?: Interval;
   /** Relative (fractional) 1-sigma forecast error to assume for uncertainty
    *  propagation, e.g. 0.15 for +/-15%. Defaults applied in dose.ts if omitted. */
   forecastRelativeErrorSD?: number;
@@ -111,8 +117,10 @@ export interface TimeToThresholdEstimate {
 
 /** Full output of the dose engine for one session at one point in time. */
 export interface DoseEstimate {
-  /** Cumulative personal dose from sessionStart to now, as an interval, SED. */
+  /** Cumulative personal dose for the day so far (this session + priorDoseTodaySED), SED. */
   cumulativeDoseSED: Interval;
+  /** Dose from this session only (sessionStart to now), SED. */
+  sessionDoseSED: Interval;
   /** MED interval in effect for this user (from Fitzpatrick type). */
   medThresholdSED: Interval;
   /** Remaining budget before the low/nominal/high MED is reached, SED. */
