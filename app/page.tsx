@@ -127,6 +127,14 @@ export default function NowPage() {
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold leading-tight">UV Dose Tracker</h1>
+          <a
+            href="https://theactinicshield.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit rounded-full border border-[var(--border)] bg-[var(--muted)]/50 px-2.5 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            Created by the Actinic Shield
+          </a>
           <p className="flex items-center gap-1 text-sm text-[var(--muted-foreground)]">
             <MapPin className="size-3.5" aria-hidden="true" />
             {locationLabel}
