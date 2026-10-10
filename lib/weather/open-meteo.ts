@@ -38,7 +38,7 @@ export async function fetchOpenMeteoForecast(
   options: FetchForecastOptions,
   fetchImpl: typeof fetch = fetch
 ): Promise<HourlyUVSample[]> {
-  const { latitude, longitude, forecastHours = 48, pastHours = 12 } = options;
+  const { latitude, longitude, forecastHours = 48, pastHours = 24 } = options;
 
   const url = new URL(FORECAST_BASE);
   url.searchParams.set("latitude", String(latitude));
