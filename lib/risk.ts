@@ -39,3 +39,19 @@ export function uvCategory(uvIndex: number): string {
   if (uvIndex < 11) return "Very high";
   return "Extreme";
 }
+
+/** Below this UV Index the sun is down or too weak to matter right now. */
+export const LOW_UV_NOW = 1;
+
+/**
+ * Clock time `minutes` after `from`, rounded to 5 minutes, e.g. "10:40 AM",
+ * prefixed with "tomorrow" when it falls on the next calendar day.
+ * Used instead of a long duration ("8 h 20 min") when UV is low right now,
+ * because nobody stands outside from 2 AM until a burn at 10:40 AM.
+ */
+export function clockLabel(from: Date, minutes: number): string {
+  const ms = Math.round((from.getTime() + minutes * 60_000) / 300_000) * 300_000;
+  const at = new Date(ms);
+  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return at.toDateString() === from.toDateString() ? time : `tomorrow ${time}`;
+}

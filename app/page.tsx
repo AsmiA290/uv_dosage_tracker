@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronDown, MapPin } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, MapPin, Timer } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { interpolateHourlyToMinutes, uviToErythemalIrradianceWm2 } from "@/lib/dose/irradiance";
 import { personalExposureRatio } from "@/lib/dose/corrections";
@@ -11,9 +11,10 @@ import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
 import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
 import { fetchProfile } from "@/lib/local/profile";
 import { fetchPriorDoseToday } from "@/lib/local/sessions";
+import { loadInProgressSession, type InProgressSession } from "@/lib/local/active-session";
 import type { UserProfile } from "@/lib/local/profile";
 import type { HourlyUVSample, Interval } from "@/lib/dose/types";
-import { budgetFractionLeft, riskFromEstimate, uvCategory } from "@/lib/risk";
+import { budgetFractionLeft, formatMinutes, riskFromEstimate, uvCategory } from "@/lib/risk";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -41,6 +42,7 @@ export default function NowPage() {
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [priorDoseToday, setPriorDoseToday] = useState<Interval>(ZERO);
+  const [inProgress, setInProgress] = useState<InProgressSession | null>(null);
 
   useEffect(() => {
     fetchProfile().then((p) => {
@@ -52,6 +54,7 @@ export default function NowPage() {
       setProfile(p);
       setNow(t);
       fetchPriorDoseToday(t).then(setPriorDoseToday).catch(() => setPriorDoseToday(ZERO));
+      setInProgress(loadInProgressSession());
     });
   }, [router]);
 
@@ -61,8 +64,39 @@ export default function NowPage() {
     return () => clearInterval(id);
   }, []);
 
-  const latitude = profile?.homeLat ?? FALLBACK_LAT;
-  const longitude = profile?.homeLon ?? FALLBACK_LON;
+  // While a session is running, "now" means where that session is.
+  const running = inProgress && !inProgress.endedAt ? inProgress : null;
+  const latitude = running?.location.latitude ?? profile?.homeLat ?? FALLBACK_LAT;
+  const longitude = running?.location.longitude ?? profile?.homeLon ?? FALLBACK_LON;
+
+  // Dose from a session that is running, or ended but not saved yet, still
+  // counts toward today, so the Now screen never shows a fuller budget than
+  // the user really has.
+  const unsavedDose = useMemo<Interval>(() => {
+    if (!inProgress || !samples || !now) return ZERO;
+    if (inProgress.startedAt.toDateString() !== now.toDateString()) return ZERO;
+    return computeDoseEstimate({
+      fitzpatrickType: inProgress.setup.fitzpatrickType,
+      latitude: inProgress.location.latitude,
+      longitude: inProgress.location.longitude,
+      surface: inProgress.setup.surface,
+      posture: inProgress.setup.posture,
+      hourlySamples: samples,
+      sessionStart: inProgress.startedAt,
+      now: inProgress.endedAt ?? now,
+      sunscreenApplications: inProgress.applications,
+      monteCarloSamples: 50,
+    }).sessionDoseSED;
+  }, [inProgress, samples, now]);
+
+  const doseToday = useMemo<Interval>(
+    () => ({
+      low: priorDoseToday.low + unsavedDose.low,
+      nominal: priorDoseToday.nominal + unsavedDose.nominal,
+      high: priorDoseToday.high + unsavedDose.high,
+    }),
+    [priorDoseToday, unsavedDose],
+  );
 
   useEffect(() => {
     if (!profile) return;
@@ -74,17 +108,19 @@ export default function NowPage() {
   const estimate = useMemo(() => {
     if (!profile || !samples || !now) return null;
     return computeDoseEstimate({
-      fitzpatrickType: profile.fitzpatrickType ?? "II",
+      fitzpatrickType: running?.setup.fitzpatrickType ?? profile.fitzpatrickType ?? "II",
       latitude,
       longitude,
-      surface: profile.defaultSurface ?? "grass",
-      posture: profile.defaultPosture ?? "standing",
+      surface: running?.setup.surface ?? profile.defaultSurface ?? "grass",
+      posture: running?.setup.posture ?? profile.defaultPosture ?? "standing",
       hourlySamples: samples,
       sessionStart: now,
       now,
-      priorDoseTodaySED: priorDoseToday,
+      // Sunscreen already on from the running session keeps protecting.
+      sunscreenApplications: running?.applications ?? [],
+      priorDoseTodaySED: doseToday,
     });
-  }, [profile, samples, now, latitude, longitude, priorDoseToday]);
+  }, [profile, samples, now, latitude, longitude, doseToday, running]);
 
   if (profile === undefined || !now) {
     return <LoadingShell />;
@@ -108,7 +144,7 @@ export default function NowPage() {
   }
 
   const fitzpatrickType = profile.fitzpatrickType ?? "II";
-  const locationLabel = profile.homeLabel ?? FALLBACK_LABEL;
+  const locationLabel = running?.location.label ?? profile.homeLabel ?? FALLBACK_LABEL;
   const risk = riskFromEstimate(estimate);
   // Solar-shaped UV at this minute (same interpolation the dose engine uses).
   const uvNow =
@@ -120,13 +156,21 @@ export default function NowPage() {
   // Hourly sample covering this hour, for the banner's cloud/rain state.
   const currentSample = [...samples].reverse().find((s) => s.time.getTime() <= now.getTime()) ?? samples[0];
   const usedPct = Math.round((1 - budgetFractionLeft(estimate)) * 100);
-  const loggedToday = priorDoseToday.nominal > 0;
+  const loggedToday = doseToday.nominal > 0;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-6 py-8 pb-32">
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold leading-tight">UV Dose Tracker</h1>
+          <a
+            href="https://theactinicshield.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit rounded-full border border-[var(--border)] bg-[var(--muted)]/50 px-2.5 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+          >
+            Created by the Actinic Shield
+          </a>
           <p className="flex items-center gap-1 text-sm text-[var(--muted-foreground)]">
             <MapPin className="size-3.5" aria-hidden="true" />
             {locationLabel}
@@ -134,6 +178,28 @@ export default function NowPage() {
         </div>
         <RiskBadge level={risk.level} label={risk.label} />
       </header>
+
+      {inProgress && (
+        <Link
+          href="/session"
+          className="glass-panel flex items-center justify-between gap-3 rounded-[var(--radius)] px-4 py-3"
+        >
+          <span className="flex items-center gap-3">
+            <Timer className="size-5 text-[var(--accent)]" aria-hidden="true" />
+            <span className="flex flex-col">
+              <span className="text-sm font-semibold">
+                {inProgress.endedAt ? "Session ended, not saved yet" : "Session in progress"}
+              </span>
+              <span className="text-xs text-[var(--muted-foreground)]">
+                {inProgress.endedAt
+                  ? "Save it so it counts toward today's total"
+                  : `Running for ${formatMinutes((now.getTime() - inProgress.startedAt.getTime()) / 60_000)}`}
+              </span>
+            </span>
+          </span>
+          <ChevronRight className="size-4 text-[var(--muted-foreground)]" aria-hidden="true" />
+        </Link>
+      )}
 
       {/* Live weather banner: the animated sky lives in its own contained card
           so it can never sit behind (and wash out) the numbers below. */}
@@ -160,9 +226,14 @@ export default function NowPage() {
         className="glass-panel flex flex-col gap-5 rounded-[calc(var(--radius)+10px)] border-t-4 px-6 py-7"
         style={{ borderTopColor: `var(--risk-${risk.level})` }}
       >
-        <BurnTimeHeadline estimate={estimate} lead="If you go outside now, you could burn in as little as" />
+        <BurnTimeHeadline
+          estimate={estimate}
+          lead={running ? "Staying out, you could burn in as little as" : "If you go outside now, you could burn in as little as"}
+          now={now}
+          uvNow={uvNow}
+        />
         <Button asChild variant="glass" size="session" className="glass-cta w-full">
-          <Link href="/session">Start a session</Link>
+          <Link href="/session">{inProgress ? "Open your session" : "Start a session"}</Link>
         </Button>
       </section>
 
@@ -200,8 +271,14 @@ export default function NowPage() {
           <dd className="hero-number text-right text-[var(--foreground)]">
             {estimate.medThresholdSED.low.toFixed(1)}–{estimate.medThresholdSED.high.toFixed(1)} SED
           </dd>
-          <dt>Logged earlier today</dt>
+          <dt>Saved sessions today</dt>
           <dd className="hero-number text-right text-[var(--foreground)]">{priorDoseToday.nominal.toFixed(2)} SED</dd>
+          {inProgress && (
+            <>
+              <dt>{inProgress.endedAt ? "Unsaved session" : "Session in progress"}</dt>
+              <dd className="hero-number text-right text-[var(--foreground)]">{unsavedDose.nominal.toFixed(2)} SED</dd>
+            </>
+          )}
           <dt>Budget left</dt>
           <dd className="hero-number text-right text-[var(--foreground)]">
             {estimate.remainingBudgetSED.nominal.toFixed(1)} SED ({estimate.remainingBudgetSED.low.toFixed(1)}–

@@ -40,7 +40,7 @@ npm install
 npm test
 ```
 
-The suite (71 tests across the dose engine and the forecast time handling) passes as of the October 2026 model revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
+The suite (78 tests across the dose engine, forecast time handling, session persistence, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
 
 ## Getting the UI built in v0
 
