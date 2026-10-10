@@ -32,6 +32,7 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
     sessionStart,
     now,
     sunscreenApplications = [],
+    priorDoseTodaySED = { low: 0, nominal: 0, high: 0 },
     forecastRelativeErrorSD = DEFAULT_FORECAST_RELATIVE_ERROR_SD,
     monteCarloSamples = DEFAULT_MONTE_CARLO_SAMPLES,
     monteCarloSeed = DEFAULT_MONTE_CARLO_SEED,
@@ -70,10 +71,16 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
           }))
         )
       : 0;
-  const cumulativeDoseSED: Interval = {
+  const sessionDoseSED: Interval = {
     low: scaleForPER(per.low),
     nominal: cumulativeNominal,
     high: scaleForPER(per.high),
+  };
+  // Day total = this session + anything logged earlier today.
+  const cumulativeDoseSED: Interval = {
+    low: sessionDoseSED.low + priorDoseTodaySED.low,
+    nominal: sessionDoseSED.nominal + priorDoseTodaySED.nominal,
+    high: sessionDoseSED.high + priorDoseTodaySED.high,
   };
 
   // 4. MED threshold interval for this Fitzpatrick type.
@@ -129,6 +136,7 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
 
   return {
     cumulativeDoseSED,
+    sessionDoseSED,
     medThresholdSED,
     remainingBudgetSED,
     currentDoseRateSEDPerMinute,
