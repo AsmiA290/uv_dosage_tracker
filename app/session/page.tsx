@@ -14,8 +14,8 @@ import type {
   SunscreenApplication,
   SurfaceType,
 } from "@/lib/dose/types";
-import { createDbSession, endDbSession, fetchDbSessionHistory, insertSunscreenApplicationRow } from "@/lib/supabase/sessions";
-import { fetchProfile } from "@/lib/supabase/profile";
+import { createDbSession, endDbSession, fetchDbSessionHistory, insertSunscreenApplicationRow } from "@/lib/local/sessions";
+import { fetchProfile } from "@/lib/local/profile";
 import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
@@ -229,7 +229,10 @@ export default function SessionPage() {
     try {
       await endDbSession({
         sessionId: ended.id,
+        startedAt: ended.startedAt,
         endedAt: ended.endedAt,
+        surface: ended.setup.surface,
+        fitzpatrickType: ended.setup.fitzpatrickType,
         estimate: ended.estimate,
         note: ended.note,
       });

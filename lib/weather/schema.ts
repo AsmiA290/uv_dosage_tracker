@@ -12,6 +12,7 @@ export const OpenMeteoHourlySchema = z.object({
   uv_index: z.array(z.number().nullable()),
   uv_index_clear_sky: z.array(z.number().nullable()),
   cloud_cover: z.array(z.number().nullable()).optional(),
+  precipitation: z.array(z.number().nullable()).optional(),
 });
 
 export const OpenMeteoForecastResponseSchema = z.object({

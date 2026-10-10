@@ -2,7 +2,7 @@ import type { FitzpatrickType, Interval } from "@/lib/dose/types";
 
 /**
  * Shape of one completed, saved session as shown on the History screen.
- * Persisted via lib/supabase/sessions.ts (`sessions` + `dose_records` tables).
+ * Persisted locally via lib/local/sessions.ts (localStorage).
  */
 export interface HistoricalSession {
   id: string;

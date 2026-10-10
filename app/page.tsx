@@ -1,14 +1,20 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, MapPin } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
-import { fetchOpenMeteoForecast, ForecastFetchError } from "@/lib/weather/open-meteo";
-import { fetchProfileServer } from "@/lib/supabase/profile-server";
+import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
+import { fetchProfile } from "@/lib/local/profile";
+import type { UserProfile } from "@/lib/local/profile";
+import type { HourlyUVSample } from "@/lib/dose/types";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile, type RiskLevel } from "@/components/ui/stat-tile";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { WeatherSky } from "@/components/weather-sky";
+import { WeatherScene3D } from "@/components/weather-scene-3d";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
@@ -16,40 +22,72 @@ const FALLBACK_LAT = 39.78;
 const FALLBACK_LON = -89.65;
 const FALLBACK_LABEL = "Springfield, IL";
 
-export const dynamic = "force-dynamic";
-
 function riskFromFraction(fraction: number): RiskLevel {
   if (fraction > 0.5) return "low";
   if (fraction > 0.2) return "medium";
   return "high";
 }
 
-export default async function NowPage() {
-  const profile = await fetchProfileServer();
-  if (!profile || !profile.onboardedAt) redirect("/onboarding");
+export default function NowPage() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined);
+  const [samples, setSamples] = useState<HourlyUVSample[] | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
 
-  const fitzpatrickType = profile.fitzpatrickType ?? "II";
-  const latitude = profile.homeLat ?? FALLBACK_LAT;
-  const longitude = profile.homeLon ?? FALLBACK_LON;
-  const locationLabel = profile.homeLabel ?? FALLBACK_LABEL;
-  const surface = profile.defaultSurface ?? "grass";
-  const posture = profile.defaultPosture ?? "standing";
+  useEffect(() => {
+    fetchProfile().then((p) => {
+      if (!p || !p.onboardedAt) {
+        router.replace("/onboarding");
+        return;
+      }
+      setProfile(p);
+      setNow(new Date());
+    });
+  }, [router]);
 
-  const sessionStart = new Date(Date.now() - 30 * 60_000);
-  const now = new Date();
+  const latitude = profile?.homeLat ?? FALLBACK_LAT;
+  const longitude = profile?.homeLon ?? FALLBACK_LON;
 
-  let hourlySamples;
-  try {
-    hourlySamples = await fetchOpenMeteoForecast({ latitude, longitude });
-  } catch (err) {
-    const message = err instanceof ForecastFetchError ? err.message : "Unexpected error.";
+  useEffect(() => {
+    if (!profile) return;
+    fetchOpenMeteoForecastClient(latitude, longitude)
+      .then(setSamples)
+      .catch((err) => setForecastError(err instanceof Error ? err.message : "Forecast unavailable."));
+  }, [profile, latitude, longitude]);
+
+  const estimate = useMemo(() => {
+    if (!profile || !samples || !now) return null;
+    const sessionStart = new Date(now.getTime() - 30 * 60_000);
+    return computeDoseEstimate({
+      fitzpatrickType: profile.fitzpatrickType ?? "II",
+      latitude,
+      longitude,
+      surface: profile.defaultSurface ?? "grass",
+      posture: profile.defaultPosture ?? "standing",
+      hourlySamples: samples,
+      sessionStart,
+      now,
+    });
+  }, [profile, samples, now, latitude, longitude]);
+
+  if (profile === undefined || !now) {
+    return (
+      <main className="flex min-h-screen items-center justify-center pb-28">
+        <div className="h-48 w-full max-w-md animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+      </main>
+    );
+  }
+
+  if (forecastError) {
     return (
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-16 pb-28">
         <WeatherSky uvIndex={0} cloudCoverPct={100} hour={now.getHours()} />
+        <WeatherScene3D uvIndex={0} cloudCoverPct={100} precipitationMm={0} hour={now.getHours()} />
         <div className="glass-panel relative z-10 mx-auto flex max-w-md flex-col items-center gap-4 rounded-[calc(var(--radius)+10px)] p-8 text-center">
           <AlertTriangle className="size-10 text-[var(--risk-medium)]" aria-hidden="true" />
           <p className="text-lg font-semibold">Forecast unavailable</p>
-          <p className="text-sm text-[var(--muted-foreground)]">{message}</p>
+          <p className="text-sm text-[var(--muted-foreground)]">{forecastError}</p>
           <p className="text-xs text-[var(--muted-foreground)]">
             Showing no cached estimate yet. Try again shortly.
           </p>
@@ -58,21 +96,22 @@ export default async function NowPage() {
     );
   }
 
-  const estimate = computeDoseEstimate({
-    fitzpatrickType,
-    latitude,
-    longitude,
-    surface,
-    posture,
-    hourlySamples,
-    sessionStart,
-    now,
-  });
+  if (!estimate || !profile) {
+    return (
+      <main className="flex min-h-screen items-center justify-center pb-28">
+        <div className="h-48 w-full max-w-md animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
+      </main>
+    );
+  }
+
+  const fitzpatrickType = profile.fitzpatrickType ?? "II";
+  const locationLabel = profile.homeLabel ?? FALLBACK_LABEL;
+  const sessionStart = new Date(now.getTime() - 30 * 60_000);
 
   // Nearest hourly sample to "now" drives the animated sky's sun/cloud
   // state so it reflects the actual forecast, not just the clock.
   const currentSample =
-    hourlySamples.find((s) => s.time.getTime() >= now.getTime()) ?? hourlySamples[hourlySamples.length - 1];
+    (samples ?? []).find((s) => s.time.getTime() >= now.getTime()) ?? samples?.[samples.length - 1];
 
   const budgetFraction =
     estimate.medThresholdSED.nominal > 0
@@ -89,6 +128,12 @@ export default async function NowPage() {
       <WeatherSky
         uvIndex={currentSample?.uvIndex ?? 0}
         cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
+        hour={now.getHours()}
+      />
+      <WeatherScene3D
+        uvIndex={currentSample?.uvIndex ?? 0}
+        cloudCoverPct={currentSample?.cloudCoverPct ?? 40}
+        precipitationMm={currentSample?.precipitationMm ?? 0}
         hour={now.getHours()}
       />
 
@@ -108,7 +153,7 @@ export default async function NowPage() {
           {FITZPATRICK_LABELS[fitzpatrickType]}
         </p>
 
-        <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] px-6 py-8">
+        <div className="glass-panel flex flex-col items-center gap-3 rounded-[calc(var(--radius)+10px)] border border-white/20 px-6 py-8 shadow-inner backdrop-blur-xl backdrop-saturate-150">
           <RadialGaugeShell title="Remaining budget" fraction={budgetFraction} riskLevel={risk} size={220}>
             <span className="hero-number text-5xl font-semibold text-[var(--foreground)]">
               {estimate.remainingBudgetSED.nominal.toFixed(1)}

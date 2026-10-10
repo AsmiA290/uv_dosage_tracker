@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LocateFixed, Sun, Timer, LineChart, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
-import { saveProfile } from "@/lib/supabase/profile";
+import { saveProfile } from "@/lib/local/profile";
 import type { FitzpatrickType, PostureType, SurfaceType } from "@/lib/dose/types";
 
 const SURFACE_OPTIONS = Object.entries(SURFACE_ALBEDO) as [SurfaceType, { label: string }][];
@@ -26,7 +26,7 @@ const STEPS = ["Welcome", "Skin type", "Location", "Defaults"] as const;
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [fitzpatrickType, setFitzpatrickType] = useState<FitzpatrickType>("II");
+  const [fitzpatrickType, setFitzpatrickType] = useState<FitzpatrickType | null>(null);
   const [homeLabel, setHomeLabel] = useState("");
   const [homeLat, setHomeLat] = useState<number | null>(null);
   const [homeLon, setHomeLon] = useState<number | null>(null);
@@ -60,6 +60,7 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
+    if (!fitzpatrickType) return;
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -260,11 +261,17 @@ export default function OnboardingPage() {
               variant="glass"
               className="glass-cta flex-1"
               onClick={() => setStep((s) => s + 1)}
+              disabled={step === 1 && !fitzpatrickType}
             >
               Continue
             </Button>
           ) : (
-            <Button variant="glass" className="glass-cta flex-1" onClick={handleFinish} disabled={isSaving}>
+            <Button
+              variant="glass"
+              className="glass-cta flex-1"
+              onClick={handleFinish}
+              disabled={isSaving || !fitzpatrickType}
+            >
               {isSaving ? "Saving…" : "Finish"}
             </Button>
           )}

@@ -37,7 +37,7 @@ export async function fetchOpenMeteoForecast(
   const url = new URL(FORECAST_BASE);
   url.searchParams.set("latitude", String(latitude));
   url.searchParams.set("longitude", String(longitude));
-  url.searchParams.set("hourly", "uv_index,uv_index_clear_sky,cloud_cover");
+  url.searchParams.set("hourly", "uv_index,uv_index_clear_sky,cloud_cover,precipitation");
   url.searchParams.set("forecast_hours", String(forecastHours));
   url.searchParams.set("timezone", "auto");
 
@@ -58,7 +58,7 @@ export async function fetchOpenMeteoForecast(
     throw new ForecastFetchError(`Open-Meteo response failed validation: ${parsed.error.message}`);
   }
 
-  const { time, uv_index, uv_index_clear_sky, cloud_cover } = parsed.data.hourly;
+  const { time, uv_index, uv_index_clear_sky, cloud_cover, precipitation } = parsed.data.hourly;
   const samples: HourlyUVSample[] = [];
   for (let i = 0; i < time.length; i++) {
     const uvIndex = uv_index[i];
@@ -68,6 +68,7 @@ export async function fetchOpenMeteoForecast(
       uvIndex,
       uvIndexClearSky: uv_index_clear_sky[i] ?? undefined,
       cloudCoverPct: cloud_cover?.[i] ?? undefined,
+      precipitationMm: precipitation?.[i] ?? undefined,
     });
   }
   return samples;
