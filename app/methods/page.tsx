@@ -50,6 +50,12 @@ const PIPELINE_STEPS = [
       "Your Fitzpatrick skin type maps to a Minimal Erythema Dose (MED) range, the dose at which reddening begins. Remaining budget is the gap between the two. A Monte Carlo simulation (2,000 runs varying your MED, the forecast, and the exposure ratio) gives a range of burn times; the headline shows the earliest likely one (10th percentile).",
     formula: "remainingBudget = MEDthreshold − dayDose",
   },
+  {
+    title: "7. Compare work exposure to the occupational limit",
+    explanation:
+      "Separately from the burn estimate, the day's UV on your most exposed skin is compared with the ICNIRP/ACGIH limit for workers: 30 J/m² per 8-hour day, about 1.0–1.3 SED of sunlight. This uses UV before sunscreen, because the limit is written for unprotected skin, and it is the same for every skin type. The US has no legal limit, so this is the closest standard. It never changes the SED or burn-time numbers above.",
+    formula: "workDose = this session + earlier sessions today (before sunscreen)\nshareOfLimit = workDose ÷ 1.15 SED (range ÷1.3 to ÷1.0)",
+  },
 ] as const;
 
 // citations.ts has no explicit category field, so grouping is inferred here
@@ -64,6 +70,7 @@ const SECTIONS: { title: string; keys: string[] }[] = [
   },
   { title: "Sunscreen", keys: ["sunscreenApplicationThickness", "sunscreenWearOff"] },
   { title: "Solar geometry & forecast uncertainty", keys: ["solarPosition", "forecastUncertainty"] },
+  { title: "Workplace exposure limit", keys: ["icnirpDailyLimit", "icnirpSolarEquivalence", "usNoSolarLimit"] },
 ];
 
 function CitationCard({ citation }: { citation: Citation }) {
@@ -155,7 +162,8 @@ export default function MethodsPage() {
           How this app defines your personal dose
         </h2>
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-          Six steps, run in order, turn a plain forecast into your running dose, remaining budget, and burn-time range. Each
+          Seven steps, run in order, turn a plain forecast into your running dose, remaining budget, burn-time range, and
+          work-exposure share. Each
           step&apos;s formula pulls straight from the constants and citations above.
         </p>
         <ol className="flex flex-col gap-0">
