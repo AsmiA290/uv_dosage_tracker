@@ -61,9 +61,12 @@ export async function endDbSession(params: {
   startedAt: Date;
   endedAt: Date;
   surface: SurfaceType;
+  posture?: PostureType;
   fitzpatrickType: FitzpatrickType;
   estimate: DoseEstimate;
   note?: string;
+  location?: { label: string; latitude: number; longitude: number };
+  applications?: SunscreenApplication[];
 }): Promise<void> {
   const history = readHistory();
   const entry: HistoricalSession = {
@@ -74,11 +77,42 @@ export async function endDbSession(params: {
     // Store this session's own dose, not the day total, so History can sum
     // sessions without double-counting.
     cumulativeDoseSED: params.estimate.sessionDoseSED,
+    incidentDoseSED: params.estimate.sessionIncidentDoseSED,
     medThresholdSED: params.estimate.medThresholdSED,
     surface: params.surface,
+    posture: params.posture,
+    location: params.location,
+    sunscreenSPFs: params.applications?.map((a) => a.labeledSPF),
     note: params.note || undefined,
   };
   writeHistory([entry, ...history.filter((s) => s.id !== params.sessionId)]);
+}
+
+/**
+ * A saved session's dose before sunscreen. Sessions saved before October
+ * 2026 did not record it; for those, the after-sunscreen dose is used, which
+ * is a lower bound (identical when no sunscreen was worn).
+ */
+export function incidentDoseOf(session: HistoricalSession): Interval {
+  return session.incidentDoseSED ?? session.cumulativeDoseSED;
+}
+
+/**
+ * Sum of before-sunscreen dose from sessions saved on the same local
+ * calendar day as `day`, for the daily work-exposure (ICNIRP) comparison.
+ * `excludeId` skips a session that is also being counted live.
+ */
+export async function fetchIncidentDoseOnDay(day: Date, excludeId?: string): Promise<Interval> {
+  const total = { low: 0, nominal: 0, high: 0 };
+  for (const s of readHistory()) {
+    if (s.id === excludeId) continue;
+    if (new Date(s.startedAt).toDateString() !== day.toDateString()) continue;
+    const dose = incidentDoseOf(s);
+    total.low += dose.low;
+    total.nominal += dose.nominal;
+    total.high += dose.high;
+  }
+  return total;
 }
 
 /** Fetches saved sessions, newest first. */

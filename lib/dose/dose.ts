@@ -76,6 +76,15 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
     nominal: cumulativeNominal,
     high: scaleForPER(per.high),
   };
+  // Same integration without sunscreen, for the work-exposure comparison
+  // (occupational limits apply to UV reaching unprotected skin).
+  const incidentAtPER = (targetPER: number) =>
+    integrateErythemalDoseSED(ambientMinutes.map(({ time, uvIndex }) => ({ time, uvIndex: uvIndex * targetPER })));
+  const sessionIncidentDoseSED: Interval = {
+    low: incidentAtPER(per.low),
+    nominal: incidentAtPER(per.nominal),
+    high: incidentAtPER(per.high),
+  };
   // Day total = this session + anything logged earlier today.
   const cumulativeDoseSED: Interval = {
     low: sessionDoseSED.low + priorDoseTodaySED.low,
@@ -137,6 +146,7 @@ export function computeDoseEstimate(input: DoseEstimateInput): DoseEstimate {
   return {
     cumulativeDoseSED,
     sessionDoseSED,
+    sessionIncidentDoseSED,
     medThresholdSED,
     remainingBudgetSED,
     currentDoseRateSEDPerMinute,
