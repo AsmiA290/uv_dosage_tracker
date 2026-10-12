@@ -125,8 +125,9 @@ function buildTrendData(sessions: HistoricalSession[]) {
  */
 function downloadExposureLog(sessions: HistoricalSession[]) {
   const now = new Date();
-  // The byte-order mark lets Excel read notes with accented characters correctly.
-  const blob = new Blob(["﻿" + buildExposureLogCsv(sessions, now)], { type: "text/csv;charset=utf-8" });
+  // A leading byte-order mark lets Excel read notes with accented characters correctly.
+  const BOM = String.fromCharCode(0xfeff);
+  const blob = new Blob([BOM + buildExposureLogCsv(sessions, now)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
