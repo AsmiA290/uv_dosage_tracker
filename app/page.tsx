@@ -10,17 +10,19 @@ import { personalExposureRatio } from "@/lib/dose/corrections";
 import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
 import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
 import { fetchProfile } from "@/lib/local/profile";
-import { fetchPriorDoseToday } from "@/lib/local/sessions";
+import { fetchIncidentDoseOnDay, fetchPriorDoseToday } from "@/lib/local/sessions";
 import { loadInProgressSession, type InProgressSession } from "@/lib/local/active-session";
 import type { UserProfile } from "@/lib/local/profile";
 import type { HourlyUVSample, Interval } from "@/lib/dose/types";
 import { budgetFractionLeft, formatMinutes, riskFromEstimate, uvCategory } from "@/lib/risk";
+import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Button } from "@/components/ui/button";
 import { WeatherSky } from "@/components/weather-sky";
 import { WeatherScene3D } from "@/components/weather-scene-3d";
+import { WorkExposureCard } from "@/components/work-exposure-card";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
@@ -42,6 +44,8 @@ export default function NowPage() {
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [priorDoseToday, setPriorDoseToday] = useState<Interval>(ZERO);
+  // Before-sunscreen dose from sessions saved today, for the work-exposure meter.
+  const [priorWorkDoseToday, setPriorWorkDoseToday] = useState<Interval>(ZERO);
   const [inProgress, setInProgress] = useState<InProgressSession | null>(null);
 
   useEffect(() => {
@@ -54,6 +58,7 @@ export default function NowPage() {
       setProfile(p);
       setNow(t);
       fetchPriorDoseToday(t).then(setPriorDoseToday).catch(() => setPriorDoseToday(ZERO));
+      fetchIncidentDoseOnDay(t).then(setPriorWorkDoseToday).catch(() => setPriorWorkDoseToday(ZERO));
       setInProgress(loadInProgressSession());
     });
   }, [router]);
@@ -72,10 +77,10 @@ export default function NowPage() {
   // Dose from a session that is running, or ended but not saved yet, still
   // counts toward today, so the Now screen never shows a fuller budget than
   // the user really has.
-  const unsavedDose = useMemo<Interval>(() => {
-    if (!inProgress || !samples || !now) return ZERO;
-    if (inProgress.startedAt.toDateString() !== now.toDateString()) return ZERO;
-    return computeDoseEstimate({
+  const unsaved = useMemo<{ dose: Interval; incident: Interval }>(() => {
+    if (!inProgress || !samples || !now) return { dose: ZERO, incident: ZERO };
+    if (inProgress.startedAt.toDateString() !== now.toDateString()) return { dose: ZERO, incident: ZERO };
+    const e = computeDoseEstimate({
       fitzpatrickType: inProgress.setup.fitzpatrickType,
       latitude: inProgress.location.latitude,
       longitude: inProgress.location.longitude,
@@ -86,8 +91,10 @@ export default function NowPage() {
       now: inProgress.endedAt ?? now,
       sunscreenApplications: inProgress.applications,
       monteCarloSamples: 50,
-    }).sessionDoseSED;
+    });
+    return { dose: e.sessionDoseSED, incident: e.sessionIncidentDoseSED };
   }, [inProgress, samples, now]);
+  const unsavedDose = unsaved.dose;
 
   const doseToday = useMemo<Interval>(
     () => ({
@@ -157,6 +164,10 @@ export default function NowPage() {
   const currentSample = [...samples].reverse().find((s) => s.time.getTime() <= now.getTime()) ?? samples[0];
   const usedPct = Math.round((1 - budgetFractionLeft(estimate)) * 100);
   const loggedToday = doseToday.nominal > 0;
+  // Daily work exposure vs the ICNIRP/ACGIH limit: saved sessions today plus
+  // any running or unsaved session, counted before sunscreen.
+  const workDoseToday = sumIntervals(priorWorkDoseToday, unsaved.incident);
+  const workShare = workDoseToday.high > 0 ? fractionOfDailyLimit(workDoseToday) : null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-6 py-8 pb-32">
@@ -251,6 +262,8 @@ export default function NowPage() {
           compact
         />
       </div>
+
+      <WorkExposureCard share={workShare} />
 
       <p className="text-center text-sm text-[var(--muted-foreground)]">
         Estimated for {FITZPATRICK_LABELS[fitzpatrickType].split(":")[0]} skin, on your most exposed areas
