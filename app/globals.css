@@ -55,7 +55,7 @@
  * read from the same palette instead of an invented parallel one.
  */
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -96,8 +96,9 @@ body {
   /* Soft, permanently-light "sky" wash behind every screen so the glass
      panels below have something to float over even off the Now page. */
   background:
-    radial-gradient(120% 60% at 12% -10%, color-mix(in srgb, #7dd3fc 20%, transparent) 0%, transparent 60%),
-    radial-gradient(100% 50% at 100% 0%, color-mix(in srgb, #fde68a 16%, transparent) 0%, transparent 55%),
+    radial-gradient(120% 60% at 12% 18%, color-mix(in srgb, #7dd3fc 26%, transparent) 0%, transparent 60%),
+    radial-gradient(100% 50% at 100% 55%, color-mix(in srgb, #fde68a 22%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 45% at 0% 100%, color-mix(in srgb, #99f6e4 18%, transparent) 0%, transparent 60%),
     var(--background);
   background-attachment: fixed;
   font-feature-settings: "tnum" 1;
@@ -110,40 +111,118 @@ body {
 }
 
 /*
- * Card surfaces. These were translucent "liquid glass" panels, but
- * translucency over a bright sky cut text contrast, which matters most for
- * an app read outdoors in direct sun. They are now near-opaque white cards
- * with a soft shadow; the class names are kept so every screen picks up the
- * change without edits.
- *  - .glass-panel        primary card
- *  - .glass-panel-solid  dense content (forms, lists, citations)
+ * Liquid glass surfaces.
+ *
+ * Frosted, slightly translucent panels with a bright specular rim and a soft
+ * sheen, like curved glass catching sunlight. Readability outdoors still
+ * comes first, so the tint is chosen per use:
+ *  - .glass-panel        primary card, ~80% white: body text stays high contrast
+ *  - .glass-panel-solid  dense content (forms, lists, citations), ~88% white
  *  - .glass-pill         small chips and the bottom nav
+ *  - .liquid-glass       the lightest glass, for controls laid over the live sky
+ * They live in @layer components so Tailwind utilities (position, rounding,
+ * background overrides) still win when a component needs them.
  */
-.glass-panel,
-.glass-panel-solid,
-.glass-pill {
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.18);
-}
+@layer components {
+  .liquid-glass,
+  .glass-panel,
+  .glass-panel-solid,
+  .glass-pill {
+    position: relative;
+    isolation: isolate;
+    border: 1px solid rgb(255 255 255 / 0.55);
+    -webkit-backdrop-filter: blur(22px) saturate(185%);
+    backdrop-filter: blur(22px) saturate(185%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.85),
+      inset 0 -1px 0 0 rgb(255 255 255 / 0.2),
+      0 1px 2px rgb(15 23 42 / 0.05),
+      0 16px 36px -20px rgb(15 23 42 / 0.35);
+  }
 
-.glass-pill {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 30px -14px rgba(15, 23, 42, 0.25);
+  .liquid-glass {
+    background: linear-gradient(150deg, rgb(255 255 255 / 0.74), rgb(255 255 255 / 0.5));
+  }
+  .glass-panel {
+    background: linear-gradient(150deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.7));
+  }
+  .glass-panel-solid {
+    background: linear-gradient(150deg, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.8));
+  }
+  .glass-pill {
+    background: linear-gradient(150deg, rgb(255 255 255 / 0.74), rgb(255 255 255 / 0.54));
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.9),
+      inset 0 -1px 0 0 rgb(255 255 255 / 0.25),
+      0 1px 2px rgb(15 23 42 / 0.06),
+      0 18px 40px -16px rgb(15 23 42 / 0.4);
+  }
+
+  /* Soft sheen across the top, like light sliding over curved glass. */
+  .liquid-glass::before,
+  .glass-panel::before,
+  .glass-panel-solid::before,
+  .glass-pill::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+      radial-gradient(130% 70% at 12% -12%, rgb(255 255 255 / 0.75), transparent 55%),
+      radial-gradient(90% 60% at 108% 118%, rgb(255 255 255 / 0.28), transparent 60%);
+  }
+
+  /* Bright rim that catches the light on the top-left and bottom-right edges. */
+  .liquid-glass::after,
+  .glass-panel::after,
+  .glass-panel-solid::after,
+  .glass-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.95),
+      rgb(255 255 255 / 0.18) 32%,
+      rgb(255 255 255 / 0.04) 64%,
+      rgb(255 255 255 / 0.65)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
 }
 
 /*
  * Solid accent fill for the single primary action on a screen
- * (Start Session, Save, Continue): the highest-contrast element on the page.
+ * (Start Session, Save, Continue): the highest-contrast element on the page,
+ * with a glassy highlight on top.
  */
 .glass-cta {
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0) 55%),
+    var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, black);
   color: var(--accent-foreground);
-  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 10px 24px -12px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
 
 .glass-cta:hover {
-  background: color-mix(in srgb, var(--accent) 88%, black);
+  filter: brightness(0.94);
+}
+
+.glass-cta:active {
+  transform: scale(0.98);
 }
 
 /*
@@ -202,5 +281,85 @@ body {
   .sky-cloud,
   .sky-sun {
     animation: none !important;
+  }
+}
+
+/* Day scrubber on the live sky: a UV-colored strip with a small glowing sun as the handle. */
+.sky-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background-color: rgb(255 255 255 / 0.35);
+  background-size: 100% 100%;
+  box-shadow:
+    inset 0 1px 2px rgb(15 23 42 / 0.25),
+    inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  cursor: grab;
+}
+
+.sky-scrubber:active {
+  cursor: grabbing;
+}
+
+.sky-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0 28%, #fef3c7 55%, #fbbf24 100%);
+  border: 2px solid rgb(255 255 255 / 0.95);
+  box-shadow:
+    0 0 0 5px rgb(251 191 36 / 0.28),
+    0 4px 12px rgb(15 23 42 / 0.35),
+    inset 0 -2px 4px rgb(180 83 9 / 0.35);
+  transition: transform 0.15s ease;
+}
+
+.sky-scrubber:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.sky-scrubber::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0 28%, #fef3c7 55%, #fbbf24 100%);
+  border: 2px solid rgb(255 255 255 / 0.95);
+  box-shadow:
+    0 0 0 5px rgb(251 191 36 / 0.28),
+    0 4px 12px rgb(15 23 42 / 0.35);
+}
+
+.sky-scrubber::-moz-range-track {
+  background: transparent;
+}
+
+.sky-scrubber:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* Cards ease up into place when a screen opens. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise-in {
+  animation: rise-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in {
+    animation: none;
   }
 }

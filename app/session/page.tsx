@@ -10,6 +10,7 @@ import type {
   DoseEstimate,
   FitzpatrickType,
   HourlyUVSample,
+  Interval,
   PostureType,
   SunscreenApplication,
   SurfaceType,
@@ -18,6 +19,7 @@ import {
   createDbSession,
   endDbSession,
   fetchDbSessionHistory,
+  fetchIncidentDoseOnDay,
   fetchPriorDoseToday,
   insertSunscreenApplicationRow,
 } from "@/lib/local/sessions";
@@ -34,10 +36,14 @@ import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { budgetFractionLeft, formatMinutes, riskFromEstimate } from "@/lib/risk";
+import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
+import { WorkExposureCard } from "@/components/work-exposure-card";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
 const FALLBACK_LOCATION: SessionLocation = { latitude: 39.78, longitude: -89.65, label: "Springfield, IL" };
+
+const ZERO: Interval = { low: 0, nominal: 0, high: 0 };
 
 /** After this long, gently ask whether the user forgot to end the session. */
 const LONG_SESSION_MINUTES = 8 * 60;
@@ -91,6 +97,11 @@ export default function SessionPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Before-sunscreen dose from other sessions saved the same day, for the
+  // daily work-exposure meter (ICNIRP/ACGIH limit).
+  const [priorWorkDose, setPriorWorkDose] = useState<Interval>(ZERO);
+  const workSessionId = (active ?? ended)?.id;
+  const workStartMs = (active ?? ended)?.startedAt.getTime();
 
   // Load the user's saved profile defaults (skin type, home location, usual
   // surface/posture) once on mount, so setup starts pre-filled instead of
@@ -129,6 +140,13 @@ export default function SessionPage() {
         setRestored(true);
       });
   }, []);
+
+  useEffect(() => {
+    if (!workSessionId || workStartMs === undefined) return;
+    fetchIncidentDoseOnDay(new Date(workStartMs), workSessionId)
+      .then(setPriorWorkDose)
+      .catch(() => setPriorWorkDose(ZERO));
+  }, [workSessionId, workStartMs]);
 
   // Keep the unfinished session in storage so a reload or a discarded
   // background tab never loses dose the user actually received.
@@ -319,9 +337,12 @@ export default function SessionPage() {
         startedAt: ended.startedAt,
         endedAt: ended.endedAt,
         surface: ended.setup.surface,
+        posture: ended.setup.posture,
         fitzpatrickType: ended.setup.fitzpatrickType,
         estimate: endedEstimate,
         note: ended.note,
+        location: ended.location,
+        applications: ended.applications,
       });
       resetToIdle();
     } catch (error: unknown) {
@@ -404,6 +425,10 @@ export default function SessionPage() {
               : "You stayed under your estimated burn threshold today. Some UV damage still happens below it, so keep protecting your skin."}
           </p>
         </div>
+
+        <WorkExposureCard
+          share={fractionOfDailyLimit(sumIntervals(priorWorkDose, endedEstimate.sessionIncidentDoseSED))}
+        />
 
         <label className="flex flex-col gap-2 text-sm">
           <span className="font-medium">Note (optional)</span>
@@ -511,6 +536,10 @@ export default function SessionPage() {
               </span>
             </RadialGaugeShell>
           </div>
+        )}
+
+        {estimate && (
+          <WorkExposureCard share={fractionOfDailyLimit(sumIntervals(priorWorkDose, estimate.sessionIncidentDoseSED))} />
         )}
 
         <div className="glass-panel-solid flex items-center justify-between rounded-[var(--radius)] p-4 text-sm">

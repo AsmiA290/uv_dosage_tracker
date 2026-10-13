@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarPlus, ChevronDown } from "lucide-react";
+import { CalendarPlus, ChevronDown, Download, MapPin } from "lucide-react";
 import Link from "next/link";
 import {
   Area,
@@ -21,6 +21,9 @@ import type { HistoricalSession } from "@/lib/session-history";
 import { Button } from "@/components/ui/button";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import type { RiskLevel } from "@/components/ui/stat-tile";
+import { fractionOfDailyLimit } from "@/lib/dose/occupational";
+import { buildExposureLogCsv, exposureLogFileName } from "@/lib/export/exposure-log";
+import { formatLimitShare } from "@/lib/risk";
 
 // Recharts writes colors into SVG presentation attributes (fill="..."),
 // where CSS custom properties like var(--risk-low) are not resolved, so
@@ -116,6 +119,25 @@ function buildTrendData(sessions: HistoricalSession[]) {
   }));
 }
 
+/**
+ * Saves the exposure log as a CSV file on this device. Nothing is uploaded;
+ * the worker decides whether to share the file.
+ */
+function downloadExposureLog(sessions: HistoricalSession[]) {
+  const now = new Date();
+  // A leading byte-order mark lets Excel read notes with accented characters correctly.
+  const BOM = String.fromCharCode(0xfeff);
+  const blob = new Blob([BOM + buildExposureLogCsv(sessions, now)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = exposureLogFileName(now);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 function SessionRow({ session }: { session: HistoricalSession }) {
   const [expanded, setExpanded] = useState(false);
   const start = new Date(session.startedAt);
@@ -162,6 +184,23 @@ function SessionRow({ session }: { session: HistoricalSession }) {
             <span className="text-[var(--muted-foreground)]">Burn threshold (MED)</span>
             <span className="hero-number">{session.medThresholdSED.nominal.toFixed(1)} SED</span>
           </div>
+          {session.incidentDoseSED && (
+            <div className="flex justify-between gap-3">
+              <span className="text-[var(--muted-foreground)]">Share of daily work limit</span>
+              <span className="hero-number">
+                {formatLimitShare(fractionOfDailyLimit(session.incidentDoseSED).nominal)}
+              </span>
+            </div>
+          )}
+          {session.location && (
+            <div className="flex justify-between gap-3">
+              <span className="text-[var(--muted-foreground)]">Location</span>
+              <span className="flex items-center gap-1 text-right">
+                <MapPin className="size-3 shrink-0" aria-hidden="true" />
+                {session.location.label}
+              </span>
+            </div>
+          )}
           {session.note && (
             <p className="mt-1 text-sm italic text-[var(--muted-foreground)]">&ldquo;{session.note}&rdquo;</p>
           )}
@@ -266,6 +305,24 @@ export default function HistoryPage() {
             <SessionRow key={s.id} session={s} />
           ))}
         </ul>
+      </section>
+
+      <section className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5" aria-labelledby="exposure-log-heading">
+        <h2 id="exposure-log-heading" className="text-sm font-semibold text-[var(--foreground)]">
+          Your exposure log
+        </h2>
+        <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+          Download every saved session as a spreadsheet: dates, places, hours, UV dose, and the share of the daily
+          work-exposure limit. Keeping a dated record can help if you raise sun exposure with an employer or a doctor.
+        </p>
+        <Button variant="outline" onClick={() => downloadExposureLog(sessions)} className="w-fit gap-1.5">
+          <Download className="size-4" aria-hidden="true" />
+          Export log (CSV)
+        </Button>
+        <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+          The file is made on this device and goes nowhere unless you share it. It is a personal record of estimates
+          from the forecast, not a measurement and not legal evidence.
+        </p>
       </section>
     </main>
   );

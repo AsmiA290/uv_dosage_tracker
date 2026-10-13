@@ -215,7 +215,7 @@ export default function OnboardingPage() {
               <select
                 value={surface}
                 onChange={(e) => setSurface(e.target.value as SurfaceType)}
-                className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className="glass-panel-solid h-11 w-full min-w-0 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 {SURFACE_OPTIONS.map(([key, { label }]) => (
                   <option key={key} value={key}>

@@ -121,6 +121,14 @@ export interface DoseEstimate {
   cumulativeDoseSED: Interval;
   /** Dose from this session only (sessionStart to now), SED. */
   sessionDoseSED: Interval;
+  /**
+   * This session's dose on the most exposed skin BEFORE sunscreen, SED
+   * (exposure ratio and ground reflection applied, sunscreen not applied).
+   * Occupational UV limits are written for unprotected skin, so the
+   * work-exposure meter uses this; the burn estimate keeps using
+   * sessionDoseSED. Equal to sessionDoseSED when no sunscreen is logged.
+   */
+  sessionIncidentDoseSED: Interval;
   /** MED interval in effect for this user (from Fitzpatrick type). */
   medThresholdSED: Interval;
   /** Remaining budget before the low/nominal/high MED is reached, SED. */

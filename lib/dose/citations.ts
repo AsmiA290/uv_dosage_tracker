@@ -131,6 +131,46 @@ export const CITATIONS: Record<string, Citation> = {
     source: "suncalc (mourner/suncalc), implementing formulas from Jean Meeus, Astronomical Algorithms.",
     confirmed: true,
   },
+  icnirpDailyLimit: {
+    key: "icnirpDailyLimit",
+    claim:
+      "International occupational limit for UV on unprotected skin and eyes: 30 J/m² effective (weighted with the ICNIRP " +
+      "spectral effectiveness curve, normalized at 270 nm) in an 8-hour day. ACGIH uses the same value, and NIOSH's 1972 " +
+      "recommended standard sets the same 3 mJ/cm² at 270 nm for artificial UV. The limit is the same for every skin type.",
+    source:
+      "ICNIRP. 'Guidelines on limits of exposure to ultraviolet radiation of wavelengths between 180 nm and 400 nm.' " +
+      "Health Physics, 2004;87(2):171-186. NIOSH. A Recommended Standard for Occupational Exposure to Ultraviolet Radiation " +
+      "(Publication 73-11009), 1972. ACGIH Threshold Limit Values for ultraviolet radiation.",
+    confirmed: false,
+    note:
+      "ACTION ITEM: confirm the 30 J/m² / 8-hour wording in the ICNIRP 2004 guideline itself (the value is also restated on p. 72 " +
+      "of the ICNIRP 2010 statement below), then set confirmed: true. The app totals each calendar day, which is at least as " +
+      "large as any 8-hour window, so it never understates exposure against this limit.",
+  },
+  icnirpSolarEquivalence: {
+    key: "icnirpSolarEquivalence",
+    claim:
+      "For sunlight, the 30 J/m² effective limit corresponds to about 1.0-1.3 SED, roughly half the burn dose (MED) of fair skin. " +
+      "ICNIRP notes the limit will rarely be met by outdoor workers, so the app reports multiples of the limit rather than a pass/fail.",
+    source:
+      "ICNIRP. 'ICNIRP Statement on Protection of Workers Against Ultraviolet Radiation.' Health Physics, 2010;99(1):66-87. " +
+      "doi:10.1097/HP.0b013e3181d85908 (SED equivalence on p. 73; 'rarely be met' on p. 66).",
+    confirmed: false,
+    note:
+      "ACTION ITEM: read p. 73 and p. 66 and set confirmed: true. The exact ratio shifts with sun angle (lower sun gives slightly more " +
+      "SED per 30 J/m²), which is why the app samples the whole 1.0-1.3 range. The comparison uses UV before sunscreen, because the " +
+      "limit is written for unprotected skin.",
+  },
+  usNoSolarLimit: {
+    key: "usNoSolarLimit",
+    claim:
+      "The United States has no legal exposure limit for workers' sun exposure. OSHA requires protective equipment only once " +
+      "overexposure is shown, and has stated it 'does not have established exposure limits for radiation from the sun.'",
+    source:
+      "OSHA Standard Interpretation, 28 August 1998, 'PPE for overexposure to the sun's radiation' (29 CFR 1910.132(a)), " +
+      "https://www.osha.gov/laws-regs/standardinterpretations/1998-08-28.",
+    confirmed: true,
+  },
   forecastUncertainty: {
     key: "forecastUncertainty",
     claim: "Open-Meteo UV index forecasts carry roughly 10-20% relative error versus ground observations at short lead times, growing at longer lead times.",

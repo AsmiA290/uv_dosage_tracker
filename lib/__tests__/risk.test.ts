@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockLabel, formatMinutes } from "../risk";
+import { clockLabel, formatLimitShare, formatMinutes } from "../risk";
 
 describe("formatMinutes", () => {
   it("formats short and long durations", () => {
@@ -25,5 +25,15 @@ describe("clockLabel", () => {
   it("rounds to the nearest 5 minutes", () => {
     const noon = new Date(2026, 6, 15, 12, 0);
     expect(clockLabel(noon, 13)).toMatch(/12:15/);
+  });
+});
+
+describe("formatLimitShare", () => {
+  it("shows a percentage below the limit and a multiple at or above it", () => {
+    expect(formatLimitShare(0)).toBe("0%");
+    expect(formatLimitShare(0.64)).toBe("64%");
+    expect(formatLimitShare(1)).toBe("1.0×");
+    expect(formatLimitShare(2.34)).toBe("2.3×");
+    expect(formatLimitShare(-1)).toBe("0%");
   });
 });

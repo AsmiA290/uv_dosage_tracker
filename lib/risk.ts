@@ -40,6 +40,17 @@ export function uvCategory(uvIndex: number): string {
   return "Extreme";
 }
 
+/**
+ * Share of the daily work-exposure limit: "64%" below the limit, "2.3×"
+ * at or above it. Outdoor workers often pass the limit several times over,
+ * so multiples read better than "230%".
+ */
+export function formatLimitShare(fraction: number): string {
+  const f = Math.max(0, fraction);
+  if (f < 1) return `${Math.round(f * 100)}%`;
+  return `${f.toFixed(1)}×`;
+}
+
 /** Below this UV Index the sun is down or too weak to matter right now. */
 export const LOW_UV_NOW = 1;
 
