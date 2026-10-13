@@ -1,11 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import "./globals.css";
 
-const geistSans = Geist({
+// Plus Jakarta Sans: soft, rounded letterforms that suit the liquid glass look,
+// with tabular figures for the countdown numbers.
+const jakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  variable: "--font-jakarta",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -35,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" className={geistSans.variable}>
+    <html lang="en" data-theme="light" className={jakartaSans.variable}>
       <body className="min-h-screen bg-[var(--background)] font-sans antialiased">
         {children}
         <BottomNav />

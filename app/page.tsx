@@ -14,14 +14,13 @@ import { fetchIncidentDoseOnDay, fetchPriorDoseToday } from "@/lib/local/session
 import { loadInProgressSession, type InProgressSession } from "@/lib/local/active-session";
 import type { UserProfile } from "@/lib/local/profile";
 import type { HourlyUVSample, Interval } from "@/lib/dose/types";
-import { budgetFractionLeft, formatMinutes, riskFromEstimate, uvCategory } from "@/lib/risk";
+import { budgetFractionLeft, formatMinutes, riskFromEstimate } from "@/lib/risk";
 import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { RiskBadge } from "@/components/ui/risk-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Button } from "@/components/ui/button";
-import { WeatherSky } from "@/components/weather-sky";
-import { WeatherScene3D } from "@/components/weather-scene-3d";
+import { SkyHero } from "@/components/sky/sky-hero";
 import { WorkExposureCard } from "@/components/work-exposure-card";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
@@ -160,8 +159,6 @@ export default function NowPage() {
   const perNominal = personalExposureRatio(profile.defaultPosture ?? "standing", profile.defaultSurface ?? "grass").nominal;
   const doseRateNow = (uviToErythemalIrradianceWm2(uvNow * perNominal) * 60) / 100; // SED per minute
   const peak = peakToday(samples, now);
-  // Hourly sample covering this hour, for the banner's cloud/rain state.
-  const currentSample = [...samples].reverse().find((s) => s.time.getTime() <= now.getTime()) ?? samples[0];
   const usedPct = Math.round((1 - budgetFractionLeft(estimate)) * 100);
   const loggedToday = doseToday.nominal > 0;
   // Daily work exposure vs the ICNIRP/ACGIH limit: saved sessions today plus
@@ -171,29 +168,52 @@ export default function NowPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-6 py-8 pb-32">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold leading-tight">UV Dose Tracker</h1>
-          <a
-            href="https://theactinicshield.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-fit rounded-full border border-[var(--border)] bg-[var(--muted)]/50 px-2.5 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-          >
-            Created by the Actinic Shield
-          </a>
-          <p className="flex items-center gap-1 text-sm text-[var(--muted-foreground)]">
-            <MapPin className="size-3.5" aria-hidden="true" />
-            {locationLabel}
-          </p>
-        </div>
-        <RiskBadge level={risk.level} label={risk.label} />
-      </header>
+      <SkyHero
+        latitude={latitude}
+        longitude={longitude}
+        now={now}
+        samples={samples}
+        header={
+          <header className="flex items-start justify-between gap-3">
+            <div className="liquid-glass flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2">
+              <h1 className="text-base font-semibold leading-tight">UV Dose Tracker</h1>
+              <a
+                href="https://theactinicshield.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-fit rounded-full border border-white/60 bg-white/50 px-2 py-px text-[10px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-white/80 hover:text-[var(--foreground)]"
+              >
+                Created by the Actinic Shield
+              </a>
+              <p className="flex items-center gap-1 text-xs text-[var(--foreground)]/80">
+                <MapPin className="size-3" aria-hidden="true" />
+                {locationLabel}
+              </p>
+            </div>
+            <RiskBadge level={risk.level} label={risk.label} />
+          </header>
+        }
+      />
+
+      <section
+        className="glass-panel rise-in relative z-10 -mt-12 flex flex-col gap-5 rounded-[calc(var(--radius)+12px)] px-6 py-7"
+        style={{ boxShadow: `inset 0 3px 0 0 var(--risk-${risk.level}), inset 0 1px 0 0 rgb(255 255 255 / 0.85), 0 22px 44px -22px rgb(15 23 42 / 0.45)` }}
+      >
+        <BurnTimeHeadline
+          estimate={estimate}
+          lead={running ? "Staying out, you could burn in as little as" : "If you go outside now, you could burn in as little as"}
+          now={now}
+          uvNow={uvNow}
+        />
+        <Button asChild variant="glass" size="session" className="glass-cta w-full">
+          <Link href="/session">{inProgress ? "Open your session" : "Start a session"}</Link>
+        </Button>
+      </section>
 
       {inProgress && (
         <Link
           href="/session"
-          className="glass-panel flex items-center justify-between gap-3 rounded-[var(--radius)] px-4 py-3"
+          className="glass-panel rise-in flex items-center justify-between gap-3 rounded-[var(--radius)] px-4 py-3"
         >
           <span className="flex items-center gap-3">
             <Timer className="size-5 text-[var(--accent)]" aria-hidden="true" />
@@ -212,43 +232,7 @@ export default function NowPage() {
         </Link>
       )}
 
-      {/* Live weather banner: the animated sky lives in its own contained card
-          so it can never sit behind (and wash out) the numbers below. */}
-      <div className="relative h-40 overflow-hidden rounded-[calc(var(--radius)+10px)] border border-[var(--border)]">
-        <WeatherSky
-          uvIndex={currentSample?.uvIndex ?? 0}
-          cloudCoverPct={currentSample?.cloudCoverPct ?? 0}
-          hour={now.getHours()}
-          fadeBottom={false}
-        />
-        <WeatherScene3D
-          uvIndex={currentSample?.uvIndex ?? 0}
-          cloudCoverPct={currentSample?.cloudCoverPct ?? 0}
-          precipitationMm={currentSample?.precipitationMm ?? 0}
-          hour={now.getHours()}
-        />
-        <p className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-[var(--foreground)] shadow-sm">
-          UV {uvNow.toFixed(1)} · {uvCategory(uvNow)}
-          {currentSample?.cloudCoverPct !== undefined ? ` · ${Math.round(currentSample.cloudCoverPct)}% cloud` : ""}
-        </p>
-      </div>
-
-      <section
-        className="glass-panel flex flex-col gap-5 rounded-[calc(var(--radius)+10px)] border-t-4 px-6 py-7"
-        style={{ borderTopColor: `var(--risk-${risk.level})` }}
-      >
-        <BurnTimeHeadline
-          estimate={estimate}
-          lead={running ? "Staying out, you could burn in as little as" : "If you go outside now, you could burn in as little as"}
-          now={now}
-          uvNow={uvNow}
-        />
-        <Button asChild variant="glass" size="session" className="glass-cta w-full">
-          <Link href="/session">{inProgress ? "Open your session" : "Start a session"}</Link>
-        </Button>
-      </section>
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="rise-in grid grid-cols-2 gap-3" style={{ animationDelay: "80ms" }}>
         <StatTile
           label="Peak UV"
           value={peak ? peak.uvIndex.toFixed(1) : "–"}
