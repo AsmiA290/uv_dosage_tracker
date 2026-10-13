@@ -13,6 +13,8 @@ A UV Index forecast tells you the irradiance falling on a flat, horizontal surfa
 ```
 lib/dose/         Hand-written scientific core. No framework dependencies. See below.
 lib/weather/      Open-Meteo fetch + Zod validation (server-only).
+lib/sky/          Sun position and sky-appearance math for the live 3D sky on the Now screen.
+components/sky/   The live 3D sky (three.js via @react-three/fiber), lazy-loaded on the client.
 lib/db/           Drizzle ORM schema (Postgres via Neon/Supabase).
 app/              Next.js 15 App Router pages + API routes.
 v0-prompts/       Prompts to paste into v0.dev, one per screen. Start here for UI work.
@@ -41,7 +43,7 @@ npm install
 npm test
 ```
 
-The suite (95 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
+The suite (106 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, the sky's sun geometry, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
 
 ## Getting the UI built in v0
 
@@ -67,6 +69,10 @@ Worth adding if you want to push the interactivity/polish further once the four 
 - **`vaul`** (a shadcn-ecosystem drawer library) for the Session screen's "log sunscreen application" bottom sheet -- much better on mobile than a modal dialog.
 - **`cmdk`** if a coach/crew-lead roster view (optional, brief section 6) grows large enough to need a searchable command palette.
 - **`@vercel/og`** if you want a shareable, auto-generated "today's dose summary" image for the demo video's social-proof moment -- not required, genuinely optional polish.
+
+### Live sky (Now screen)
+
+The Now screen opens on a live 3D sky rendered with `three`, `@react-three/fiber` and `@react-three/drei` (already dependencies). The sun sits at its real altitude and azimuth for the user's location and time (`suncalc`), the sky color comes from three.js's physically based scattering model, and cloud cover and rain from the forecast change the haze, clouds and rain shown. A slider previews the sun's position and UV at any time between sunrise and sunset. The 3D code is loaded only after the page renders, so the first load stays light, and it pauses when off screen; with reduced motion turned on, the sky is drawn without animation, and a static gradient stays in place if WebGL is unavailable. **AI disclosure:** `components/sky/` and `lib/sky/` were written with an AI coding assistant (Claude, by Anthropic) and reviewed by the author. The interface typeface is Plus Jakarta Sans (Google Fonts, via `next/font`).
 
 Resist the temptation to add a charting or animation library per screen "just because it looks cool" -- the brief's own "do not" list (scope creep past four screens) applies to dependencies too.
 
