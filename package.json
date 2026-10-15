@@ -2,7 +2,7 @@
   "name": "uv-dose-tracker",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal UV Dose Tracker — Congressional App Challenge 2026 (IL-13)",
+  "description": "The ActinicUVDose — Congressional App Challenge 2026 (IL-13)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -38,7 +38,7 @@ export function localeInfo(code: Locale) {
  * language: people compare them with sunscreen labels, the UV Index on the
  * news, and the cited sources.
  */
-export const PROTECTED_TERMS = ["SPF", "UPF", "UV", "SED", "MED", "ICNIRP", "ACGIH", "OSHA", "NIOSH", "EPA", "CSV", "J/m²", "Open-Meteo", "Actinic Shield"] as const;
+export const PROTECTED_TERMS = ["SPF", "UPF", "UV", "SED", "MED", "ICNIRP", "ACGIH", "OSHA", "NIOSH", "EPA", "CSV", "J/m²", "Open-Meteo", "Actinic Shield", "ActinicUVDose"] as const;
 
 /**
  * Runs before React loads (inlined in the root layout), so a right-to-left

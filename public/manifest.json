@@ -1,6 +1,6 @@
 {
-  "name": "UV Dose Tracker",
-  "short_name": "UV Dose",
+  "name": "The ActinicUVDose",
+  "short_name": "ActinicUVDose",
   "description": "Personal UV dose tracking for outdoor workers and athletes.",
   "start_url": "/",
   "display": "standalone",
