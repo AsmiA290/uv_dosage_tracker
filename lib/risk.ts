@@ -7,13 +7,15 @@ import type { RiskLevel } from "@/components/ui/stat-tile";
  * the Monte Carlo run), not by remaining budget alone: a full budget can
  * still disappear in 20 minutes at midday UV.
  */
-export function riskFromEstimate(estimate: DoseEstimate): { level: RiskLevel; label: string } {
-  if (estimate.remainingBudgetSED.nominal <= 0) return { level: "high", label: "Threshold reached" };
+export type RiskKey = "thresholdReached" | "low" | "moderate" | "high";
+
+export function riskFromEstimate(estimate: DoseEstimate): { level: RiskLevel; label: string; key: RiskKey } {
+  if (estimate.remainingBudgetSED.nominal <= 0) return { level: "high", label: "Threshold reached", key: "thresholdReached" };
   const p10 = estimate.timeToThreshold.p10Minutes;
-  if (!Number.isFinite(p10)) return { level: "low", label: "Low risk" };
-  if (p10 <= 30) return { level: "high", label: "High risk" };
-  if (p10 <= 90) return { level: "medium", label: "Moderate risk" };
-  return { level: "low", label: "Low risk" };
+  if (!Number.isFinite(p10)) return { level: "low", label: "Low risk", key: "low" };
+  if (p10 <= 30) return { level: "high", label: "High risk", key: "high" };
+  if (p10 <= 90) return { level: "medium", label: "Moderate risk", key: "moderate" };
+  return { level: "low", label: "Low risk", key: "low" };
 }
 
 /** "45 min" or "1 h 20 min". */
@@ -31,7 +33,18 @@ export function budgetFractionLeft(estimate: DoseEstimate): number {
   return med > 0 ? Math.max(0, estimate.remainingBudgetSED.nominal / med) : 0;
 }
 
-/** EPA UV Index category word, for plain-language display next to the number. */
+export type UvCategoryKey = "low" | "moderate" | "high" | "veryHigh" | "extreme";
+
+/** EPA UV Index category, as a key into the translated category names. */
+export function uvCategoryKey(uvIndex: number): UvCategoryKey {
+  if (uvIndex < 3) return "low";
+  if (uvIndex < 6) return "moderate";
+  if (uvIndex < 8) return "high";
+  if (uvIndex < 11) return "veryHigh";
+  return "extreme";
+}
+
+/** EPA UV Index category word in English, for plain-language display next to the number. */
 export function uvCategory(uvIndex: number): string {
   if (uvIndex < 3) return "Low";
   if (uvIndex < 6) return "Moderate";

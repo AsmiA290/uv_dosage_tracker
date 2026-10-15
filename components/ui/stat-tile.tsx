@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils"
 export type RiskLevel = "low" | "medium" | "high"
 
 const RISK_BORDER: Record<RiskLevel, string> = {
-  low: "border-l-[var(--risk-low)]",
-  medium: "border-l-[var(--risk-medium)]",
-  high: "border-l-[var(--risk-high)]",
+  low: "border-s-[var(--risk-low)]",
+  medium: "border-s-[var(--risk-medium)]",
+  high: "border-s-[var(--risk-high)]",
 }
 
 interface StatTileProps {
@@ -33,7 +33,7 @@ export function StatTile({ label, value, unit, caption, compact, riskLevel, clas
       className={cn(
         "glass-panel flex flex-col gap-1 rounded-[calc(var(--radius)+4px)]",
         compact ? "p-3.5" : "p-5",
-        riskLevel && `border-l-4 ${RISK_BORDER[riskLevel]}`,
+        riskLevel && `border-s-4 ${RISK_BORDER[riskLevel]}`,
         className
       )}
     >
@@ -42,7 +42,7 @@ export function StatTile({ label, value, unit, caption, compact, riskLevel, clas
       </span>
       <span className={cn("hero-number font-semibold text-[var(--foreground)]", compact ? "text-2xl" : "text-3xl")}>
         {value}
-        {unit && <span className="ml-1 text-base font-normal text-[var(--muted-foreground)]">{unit}</span>}
+        {unit && <span className="ms-1 text-base font-normal text-[var(--muted-foreground)]">{unit}</span>}
       </span>
       {caption && <span className="text-xs leading-snug text-[var(--muted-foreground)]">{caption}</span>}
     </div>
