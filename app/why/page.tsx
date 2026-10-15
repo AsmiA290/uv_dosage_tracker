@@ -1,30 +1,12 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Globe2, HeartPulse, Landmark, Microscope, ScrollText, ShieldAlert, Smartphone, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n/provider";
 
-const REASONS = [
-  {
-    icon: ShieldAlert,
-    title: "UV exposure is invisible",
-    body: "There's no sting, no heat, no warning sign in the moment — the skin damage from today's sun shows up hours later, or years later. A tool that turns an invisible, cumulative exposure into a number you can watch in real time closes that feedback gap.",
-  },
-  {
-    icon: Target,
-    title: "Built for people who can't just stay inside",
-    body: "Outdoor workers and athletes don't get to avoid midday sun — their job or their sport is outside. The Actinic Shield focuses on the people whose exposure is a given, not a choice, and asks: given that, how do we make it safer?",
-  },
-  {
-    icon: Microscope,
-    title: "Generic advice doesn't fit a real day",
-    body: "\"Wear sunscreen\" and \"avoid peak hours\" are true but useless when you're six hours into a shift at 1 p.m. This app instead tracks your specific skin type, your sunscreen's real decay over time, cloud cover, and your actual forecast — together — as one running dose.",
-  },
-  {
-    icon: HeartPulse,
-    title: "Prevention is cheaper than treatment",
-    body: "Skin cancer is one of the most preventable cancers there is. Every habit this app nudges — reapplying before protection lapses, taking shade before the budget runs out — is a small, compounding act of prevention.",
-  },
-] as const;
+const REASON_ICONS = [ShieldAlert, Target, Microscope, HeartPulse] as const;
 
 // Policy status is time-sensitive: re-check every item before each submission
 // or demo and update POLICY_AS_OF. Sources are listed in POLICY_SOURCES.
@@ -33,6 +15,7 @@ const POLICY_AS_OF = "October 2026";
 const POLICY_CARDS = [
   {
     icon: Landmark,
+    key: "us",
     title: "In the United States",
     points: [
       "There is no legal limit for sun exposure at work. OSHA has said it “does not have established exposure limits for radiation from the sun.” It can require protective equipment only after overexposure is shown, which is hard to show without a limit.",
@@ -42,6 +25,7 @@ const POLICY_CARDS = [
   },
   {
     icon: Globe2,
+    key: "elsewhere",
     title: "Elsewhere",
     points: [
       "International standard: ICNIRP applies the same 30 J/m² daily limit to sunlight (about 1.0–1.3 SED), acknowledges outdoor workers will rarely stay under it, and recommends broad-brimmed hats when the UV Index is above 3.",
@@ -52,6 +36,7 @@ const POLICY_CARDS = [
   },
   {
     icon: ScrollText,
+    key: "propose",
     title: "What we propose",
     points: [
       "When the UV Index is 3 or higher, heat illness prevention plans should also cover sun protection: shade, scheduling around the midday peak, and sunscreen supplied like other protective equipment.",
@@ -61,6 +46,7 @@ const POLICY_CARDS = [
   },
   {
     icon: Smartphone,
+    key: "helps",
     title: "How this app helps",
     points: [
       "A daily work-exposure meter shows how much of the international limit each day’s sessions used. It is the same for every skin type.",
@@ -82,13 +68,16 @@ const POLICY_SOURCES = [
 ] as const;
 
 export default function WhyPage() {
+  const { m, rich, locale } = useI18n();
+  const w = m.why;
+  const policyLang = locale === "en" ? undefined : "en";
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-10 px-6 py-8 pb-28">
       <header className="flex flex-col gap-4">
         <Button asChild variant="outline" size="sm" className="w-fit gap-1.5">
           <Link href="/methods">
-            <ArrowLeft className="size-3.5" aria-hidden="true" />
-            Methods
+            <ArrowLeft className="size-3.5 rtl:rotate-180" aria-hidden="true" />
+            {w.back}
           </Link>
         </Button>
 
@@ -104,27 +93,23 @@ export default function WhyPage() {
             />
           </div>
           <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
-            This UV Dose Tracker is a program of <strong className="text-[var(--foreground)]">The Actinic Shield</strong>,
-            a nonprofit dedicated to sun-safety education and skin cancer prevention for people who spend their
-            days outdoors.
+            {rich(w.orgIntro, { org: <strong className="whitespace-nowrap text-[var(--foreground)]">The Actinic Shield</strong> })}
           </p>
         </div>
       </header>
 
       <section className="flex flex-col gap-3">
-        <h1 className="text-lg font-semibold">Why this app exists</h1>
+        <h1 className="text-lg font-semibold">{w.title}</h1>
         <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
-          &quot;Actinic&quot; is the medical word for damage caused by radiant energy — specifically, in
-          dermatology, the slow harm that ultraviolet light does to skin over a lifetime of exposure. Our
-          namesake is the idea that this kind of harm can be shielded against, one informed decision at a time.
-          This app is our attempt to make that shield practical: not a warning poster, but a live, personal
-          running total you can actually act on during your day.
+          {w.body}
         </p>
       </section>
 
       <section className="flex flex-col gap-4">
-        {REASONS.map(({ icon: Icon, title, body }) => (
-          <div key={title} className="glass-panel-solid flex flex-col gap-2 rounded-[var(--radius)] p-5">
+        {w.reasons.map(({ title, body }, i) => {
+          const Icon = REASON_ICONS[i] ?? ShieldAlert;
+          return (
+          <div key={i} className="glass-panel-solid flex flex-col gap-2 rounded-[var(--radius)] p-5">
             <div className="flex items-center gap-2.5">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">
                 <Icon className="size-4" aria-hidden="true" />
@@ -133,26 +118,30 @@ export default function WhyPage() {
             </div>
             <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">{body}</p>
           </div>
-        ))}
+          );
+        })}
       </section>
 
       <section id="policy" className="flex scroll-mt-6 flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold">Sun exposure at work: the policy gap</h2>
-          <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
-            Outdoor workers receive several times the yearly UV dose of indoor workers, yet sun exposure is one of the few
-            workplace hazards with no exposure limit in US law. Status as of {POLICY_AS_OF}.
-          </p>
+          <h2 className="text-lg font-semibold">{w.policyTitle}</h2>
+          <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">{w.policyIntro.replace("{date}", POLICY_AS_OF)}</p>
+          {policyLang && <p className="text-xs italic leading-relaxed text-[var(--muted-foreground)]">{w.policyNote}</p>}
         </div>
-        {POLICY_CARDS.map(({ icon: Icon, title, points }) => (
-          <div key={title} className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5">
+        {POLICY_CARDS.map(({ icon: Icon, key, points }) => (
+          <div key={key} className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5">
             <div className="flex items-center gap-2.5">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">
                 <Icon className="size-4" aria-hidden="true" />
               </span>
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">{title}</h3>
+              <h3 className="text-sm font-semibold text-[var(--foreground)]">{w.policyCards[key]}</h3>
             </div>
-            <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-[var(--muted-foreground)]">
+            {/* Policy wording stays in English so legal terms stay exact. */}
+            <ul
+              lang={policyLang}
+              dir={policyLang ? "ltr" : undefined}
+              className="flex list-disc flex-col gap-2 ps-5 text-sm leading-relaxed text-[var(--muted-foreground)]"
+            >
               {points.map((point) => (
                 <li key={point}>{point}</li>
               ))}
@@ -160,8 +149,8 @@ export default function WhyPage() {
           </div>
         ))}
         <details className="glass-panel-solid group rounded-[var(--radius)] p-4 text-xs">
-          <summary className="cursor-pointer list-none font-medium text-[var(--foreground)]">Policy sources</summary>
-          <ul className="mt-3 flex flex-col gap-2">
+          <summary className="cursor-pointer list-none font-medium text-[var(--foreground)]">{w.sources}</summary>
+          <ul className="mt-3 flex flex-col gap-2" lang="en" dir="ltr">
             {POLICY_SOURCES.map((source) => (
               <li key={source.href}>
                 <a
@@ -179,24 +168,17 @@ export default function WhyPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-          Our approach
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">{w.approachTitle}</h2>
         <ul className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5 text-sm leading-relaxed text-[var(--foreground)]">
-          <li>Educational, not diagnostic — we estimate exposure, we never assess skin or claim to detect harm.</li>
-          <li>Every model parameter is cited and shown on the Methods page, including where the science is still a range rather than a single settled number.</li>
-          <li>Real, live weather data for your coordinates — never a simulated or hardcoded forecast.</li>
-          <li>Built around the people most exposed: outdoor workers and athletes who can&apos;t simply avoid the sun.</li>
+          {w.approach.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
         </ul>
       </section>
 
       <footer className="glass-panel-solid flex flex-col items-center gap-2 rounded-[var(--radius)] p-5 text-center">
-        <p className="text-base font-semibold text-[var(--foreground)]">
-          A program of The Actinic Shield
-        </p>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          Educational tool. Not a medical device. Does not diagnose or assess skin conditions.
-        </p>
+        <p className="text-base font-semibold text-[var(--foreground)]">{w.program}</p>
+        <p className="text-sm text-[var(--muted-foreground)]">{w.footer}</p>
       </footer>
     </main>
   );
