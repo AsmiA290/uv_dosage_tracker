@@ -5,6 +5,7 @@ import { AlertTriangle, Clock, LocateFixed, MapPin, Plus } from "lucide-react";
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { activeSPFAtTime, shouldReapply } from "@/lib/dose/sunscreen";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
+import { useI18n } from "@/lib/i18n/provider";
 import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
 import type {
   DoseEstimate,
@@ -35,7 +36,7 @@ import { Button } from "@/components/ui/button";
 import { RadialGaugeShell } from "@/components/ui/radial-gauge-shell";
 import { UncertaintyRange } from "@/components/ui/uncertainty-range";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
-import { budgetFractionLeft, formatMinutes, riskFromEstimate } from "@/lib/risk";
+import { budgetFractionLeft, riskFromEstimate } from "@/lib/risk";
 import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
 import { WorkExposureCard } from "@/components/work-exposure-card";
 
@@ -49,17 +50,14 @@ const ZERO: Interval = { low: 0, nominal: 0, high: 0 };
 const LONG_SESSION_MINUTES = 8 * 60;
 
 const THICKNESS_OPTIONS = [
-  { label: "Light dab", value: 0.5 },
-  { label: "Standard layer", value: 1.0 },
-  { label: "Thick, visible layer", value: 2.0 },
+  { key: "thicknessLight", value: 0.5 },
+  { key: "thicknessStandard", value: 1.0 },
+  { key: "thicknessThick", value: 2.0 },
 ] as const;
 
-const SURFACE_OPTIONS = Object.entries(SURFACE_ALBEDO) as [SurfaceType, { label: string }][];
-const POSTURE_OPTIONS: { value: PostureType; label: string }[] = [
-  { value: "standing", label: "Standing" },
-  { value: "sitting", label: "Sitting" },
-  { value: "activeSport", label: "Active sport" },
-];
+const SURFACE_KEYS = Object.keys(SURFACE_ALBEDO) as SurfaceType[];
+const SKIN_KEYS = Object.keys(FITZPATRICK_LABELS) as FitzpatrickType[];
+const POSTURE_OPTIONS: PostureType[] = ["standing", "sitting", "activeSport"];
 
 type SetupState = SessionSetup;
 
@@ -68,13 +66,17 @@ type ActiveSession = InProgressSession;
 type EndedSession = InProgressSession & { endedAt: Date };
 
 export default function SessionPage() {
+  const { m, t, duration, date: formatDate } = useI18n();
+  // Location labels the app stores in English are shown in the chosen language.
+  const displayLabel = (label: string) =>
+    label === "Current location" ? m.common.currentLocation : label === "Home" ? m.common.home : label;
   const [phase, setPhase] = useState<"idle" | "active" | "ended">("idle");
   const [samples, setSamples] = useState<HourlyUVSample[] | null>(null);
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [active, setActive] = useState<ActiveSession | null>(null);
   const [ended, setEnded] = useState<EndedSession | null>(null);
-  const [lastSavedSummary, setLastSavedSummary] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<{ startedAt: string; dose: string } | null>(null);
 
   const [setup, setSetup] = useState<SetupState>({
     fitzpatrickType: "II",
@@ -86,7 +88,7 @@ export default function SessionPage() {
   const [homeLocation, setHomeLocation] = useState<SessionLocation>(FALLBACK_LOCATION);
   const [location, setLocation] = useState<SessionLocation>(FALLBACK_LOCATION);
   const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<"unavailable" | "failed" | null>(null);
   // True once we've checked storage for an unfinished session, so the
   // persistence effect below never wipes it before it has been restored.
   const [restored, setRestored] = useState(false);
@@ -167,7 +169,7 @@ export default function SessionPage() {
 
   function pickCurrentLocation() {
     if (!("geolocation" in navigator)) {
-      setLocationError("Location isn't available in this browser.");
+      setLocationError("unavailable");
       return;
     }
     setLocating(true);
@@ -179,7 +181,7 @@ export default function SessionPage() {
         setLocating(false);
       },
       () => {
-        setLocationError("Couldn't get your location, so your home location is used.");
+        setLocationError("failed");
         setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60_000 },
@@ -214,9 +216,7 @@ export default function SessionPage() {
       .then((sessions) => {
         const last = sessions[0];
         if (!last) return;
-        const dose = last.cumulativeDoseSED.nominal.toFixed(1);
-        const date = new Date(last.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-        setLastSavedSummary(`Last session: ${date} · ${dose} SED`);
+        setLastSaved({ startedAt: last.startedAt, dose: last.cumulativeDoseSED.nominal.toFixed(1) });
       })
       .catch(() => {
         // ignore: this continuity note is best-effort only
@@ -295,7 +295,7 @@ export default function SessionPage() {
       setPhase("active");
     } catch (error: unknown) {
       console.error("[v0] Failed to start session:", error);
-      setStartError(error instanceof Error ? error.message : "Could not start session. Please try again.");
+      setStartError(m.session.startFailed);
     } finally {
       setIsStarting(false);
     }
@@ -347,7 +347,7 @@ export default function SessionPage() {
       resetToIdle();
     } catch (error: unknown) {
       console.error("[v0] Failed to save session:", error);
-      setSaveError(error instanceof Error ? error.message : "Could not save session. Please try again.");
+      setSaveError(m.session.saveFailed);
     } finally {
       setIsSaving(false);
     }
@@ -361,10 +361,10 @@ export default function SessionPage() {
   if (phase === "ended" && ended && !endedEstimate) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-8 pb-28">
-        <h1 className="text-lg font-semibold">Session summary</h1>
+        <h1 className="text-lg font-semibold">{m.session.summaryTitle}</h1>
         {forecastError ? (
           <p className="rounded-[var(--radius)] border border-[var(--risk-medium)]/30 bg-[var(--risk-medium)]/10 p-3 text-sm text-[var(--foreground)]">
-            {forecastError} Your session is kept on this device; reopen this screen when you have signal to save it.
+            {m.now.forecastUnavailable}. {m.session.keptOffline}
           </p>
         ) : (
           <div className="h-48 animate-pulse rounded-[var(--radius)] bg-[var(--border)]" />
@@ -383,14 +383,14 @@ export default function SessionPage() {
 
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-8 pb-28">
-        <h1 className="text-lg font-semibold">Session summary</h1>
+        <h1 className="text-lg font-semibold">{m.session.summaryTitle}</h1>
         <div className="glass-panel-solid flex flex-col gap-4 rounded-[calc(var(--radius)+6px)] p-6">
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>Duration</span>
-            <span className="hero-number font-semibold text-[var(--foreground)]">{durationMin} min</span>
+            <span>{m.session.duration}</span>
+            <span className="hero-number font-semibold text-[var(--foreground)]">{duration(durationMin)}</span>
           </div>
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>This session</span>
+            <span>{m.session.thisSession}</span>
             <UncertaintyRange
               low={endedEstimate.sessionDoseSED.low}
               nominal={endedEstimate.sessionDoseSED.nominal}
@@ -400,7 +400,7 @@ export default function SessionPage() {
             />
           </div>
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>Today so far</span>
+            <span>{m.session.todaySoFar}</span>
             <UncertaintyRange
               low={endedEstimate.cumulativeDoseSED.low}
               nominal={endedEstimate.cumulativeDoseSED.nominal}
@@ -410,7 +410,7 @@ export default function SessionPage() {
             />
           </div>
           <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
-            <span>Budget left today</span>
+            <span>{m.session.budgetLeftToday}</span>
             <UncertaintyRange
               low={endedEstimate.remainingBudgetSED.low}
               nominal={endedEstimate.remainingBudgetSED.nominal}
@@ -420,9 +420,7 @@ export default function SessionPage() {
             />
           </div>
           <p className="mt-2 text-sm text-[var(--foreground)]">
-            {overBudget
-              ? "You likely passed your estimated burn threshold today. Watch for redness over the next day and stay in shade."
-              : "You stayed under your estimated burn threshold today. Some UV damage still happens below it, so keep protecting your skin."}
+            {overBudget ? m.session.overBudget : m.session.underBudget}
           </p>
         </div>
 
@@ -431,11 +429,11 @@ export default function SessionPage() {
         />
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium">Note (optional)</span>
+          <span className="font-medium">{m.session.note}</span>
           <textarea
             value={ended.note}
             onChange={(e) => setEnded({ ...ended, note: e.target.value })}
-            placeholder="e.g. practice moved indoors at 3:40"
+            placeholder={m.session.notePlaceholder}
             rows={3}
             className="glass-panel-solid rounded-[var(--radius)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           />
@@ -449,7 +447,7 @@ export default function SessionPage() {
 
         <div className="flex gap-3">
           <Button variant="outline" size="session" className="flex-1" onClick={resetToIdle} disabled={isSaving}>
-            Discard
+            {m.session.discard}
           </Button>
           <Button
             variant="glass"
@@ -458,7 +456,7 @@ export default function SessionPage() {
             onClick={handleSave}
             disabled={isSaving}
           >
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? m.common.saving : m.common.save}
           </Button>
         </div>
       </main>
@@ -477,12 +475,12 @@ export default function SessionPage() {
         <header className="flex items-center justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-              Elapsed
+              {m.session.elapsed}
             </p>
-            <p className="hero-number text-3xl font-semibold">{formatMinutes(elapsedMin)}</p>
+            <p className="hero-number text-3xl font-semibold">{duration(elapsedMin)}</p>
             <p className="mt-1 flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
               <MapPin className="size-3" aria-hidden="true" />
-              {active.location.label}
+              {displayLabel(active.location.label)}
             </p>
           </div>
           <Button
@@ -491,7 +489,7 @@ export default function SessionPage() {
             onClick={handleEnd}
             className="bg-[var(--risk-high)] text-white hover:bg-[var(--risk-high)]/90"
           >
-            End Session
+            {m.session.end}
           </Button>
         </header>
 
@@ -499,8 +497,7 @@ export default function SessionPage() {
           <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
             <Clock className="mt-0.5 size-4 shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
             <p className="text-sm text-[var(--foreground)]">
-              This session has been running for {formatMinutes(elapsedMin)}. If you&apos;ve gone inside, end it so
-              your total stays accurate.
+              {t(m.session.longSession, { time: duration(elapsedMin) })}
             </p>
           </div>
         )}
@@ -510,7 +507,7 @@ export default function SessionPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--risk-medium)]" aria-hidden="true" />
               <p className="text-sm text-[var(--foreground)]">
-                Time to reapply sunscreen: about half of the layer you put on has likely worn off.
+                {m.session.reapply}
               </p>
             </div>
             <Button
@@ -519,15 +516,15 @@ export default function SessionPage() {
               className="glass-cta shrink-0"
               onClick={() => handleLogReapplication("dry")}
             >
-              Log
+              {m.session.log}
             </Button>
           </div>
         )}
 
         {estimate && (
           <div className="glass-panel flex flex-col items-center gap-5 rounded-[calc(var(--radius)+10px)] px-6 py-6">
-            <BurnTimeHeadline estimate={estimate} lead="Staying out, you could burn in as little as" now={now} uvNow={uvNow} />
-            <RadialGaugeShell title="Today's burn budget left" fraction={budgetFraction} riskLevel={risk} size={168}>
+            <BurnTimeHeadline estimate={estimate} lead={m.now.leadStaying} now={now} uvNow={uvNow} />
+            <RadialGaugeShell title={m.session.budgetTitle} fraction={budgetFraction} riskLevel={risk} size={168}>
               <span className="hero-number text-4xl font-semibold text-[var(--foreground)]">
                 {Math.round(budgetFraction * 100)}%
               </span>
@@ -543,16 +540,16 @@ export default function SessionPage() {
         )}
 
         <div className="glass-panel-solid flex items-center justify-between rounded-[var(--radius)] p-4 text-sm">
-          <span className="text-[var(--muted-foreground)]">Sunscreen</span>
+          <span className="text-[var(--muted-foreground)]">{m.session.sunscreen}</span>
           <span className="font-medium">
-            {currentSpf ? `Effective SPF ~${currentSpf.toFixed(0)}` : "None logged"}
+            {currentSpf ? t(m.session.effectiveSpf, { spf: currentSpf.toFixed(0) }) : m.session.noneLogged}
           </span>
         </div>
 
         {addingSunscreen ? (
           <div className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-4">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">SPF</span>
+              <span className="font-medium">{m.session.spf}</span>
               <input
                 type="number"
                 min={1}
@@ -563,11 +560,11 @@ export default function SessionPage() {
               />
             </label>
             <fieldset className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">Thickness</span>
+              <span className="font-medium">{m.session.thickness}</span>
               <div className="flex flex-wrap gap-2">
                 {THICKNESS_OPTIONS.map((opt) => (
                   <button
-                    key={opt.label}
+                    key={opt.key}
                     type="button"
                     onClick={() => setAddThickness(opt.value)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -576,37 +573,37 @@ export default function SessionPage() {
                         : "border-[var(--border)] text-[var(--muted-foreground)]"
                     }`}
                   >
-                    {opt.label}
+                    {m.session[opt.key]}
                   </button>
                 ))}
               </div>
             </fieldset>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setAddingSunscreen(false)}>
-                Cancel
+                {m.common.cancel}
               </Button>
               <Button
                 variant="glass"
                 className="glass-cta flex-1"
                 onClick={() => handleLogReapplication("dry")}
               >
-                Add
+                {m.session.add}
               </Button>
             </div>
           </div>
         ) : (
           <Button variant="outline" onClick={() => setAddingSunscreen(true)} className="gap-1.5">
             <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
-            Add sunscreen application
+            {m.session.addSunscreen}
           </Button>
         )}
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-[var(--muted-foreground)]">Note (optional)</span>
+          <span className="font-medium text-[var(--muted-foreground)]">{m.session.note}</span>
           <textarea
             value={active.note}
             onChange={(e) => setActive({ ...active, note: e.target.value })}
-            placeholder="e.g. practice moved indoors at 3:40"
+            placeholder={m.session.notePlaceholder}
             rows={2}
             className="glass-panel-solid rounded-[var(--radius)] p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           />
@@ -619,108 +616,109 @@ export default function SessionPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 px-6 py-8 pb-28">
       <div>
-        <h1 className="text-lg font-semibold">Session</h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Sessions are explicit start/stop: this app doesn&apos;t track location in the background, the same
-          way a coach or crew lead already thinks about a shift or practice.
-        </p>
+        <h1 className="text-lg font-semibold">{m.session.title}</h1>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">{m.session.intro}</p>
       </div>
 
       {forecastError && (
         <p className="rounded-[var(--radius)] border border-[var(--risk-medium)]/30 bg-[var(--risk-medium)]/10 p-3 text-sm text-[var(--foreground)]">
-          {forecastError}
+          {m.now.forecastUnavailable}. {m.now.tryAgain}
         </p>
       )}
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Location</legend>
+        <legend className="text-sm font-medium">{m.session.location}</legend>
         <div className="glass-panel-solid flex items-center justify-between gap-3 rounded-[var(--radius)] px-3 py-2.5">
           <span className="flex min-w-0 items-center gap-2 text-sm">
             <MapPin className="size-4 shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
-            <span className="truncate">{location.label}</span>
+            <span className="truncate">{displayLabel(location.label)}</span>
           </span>
           {location.label === "Current location" ? (
             <Button type="button" variant="outline" size="sm" onClick={pickHomeLocation}>
-              Use home
+              {m.session.useHome}
             </Button>
           ) : (
             <Button type="button" variant="outline" size="sm" onClick={pickCurrentLocation} disabled={locating} className="gap-1.5">
               <LocateFixed className="size-3.5" aria-hidden="true" />
-              {locating ? "Locating…" : "Use where I am"}
+              {locating ? m.common.locating : m.session.useHere}
             </Button>
           )}
         </div>
-        {locationError && <p className="text-xs text-[var(--risk-medium)]">{locationError}</p>}
+        {locationError && (
+          <p className="text-xs text-[var(--risk-medium)]">
+            {locationError === "unavailable" ? m.session.locUnavailable : m.session.locFailedHome}
+          </p>
+        )}
         <p className="text-xs text-[var(--muted-foreground)]">
-          At an away game or job site? Use where you are so the forecast matches.
+          {m.session.awayHint}
         </p>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Skin type</legend>
+        <legend className="text-sm font-medium">{m.session.skinType}</legend>
         <select
           value={setup.fitzpatrickType}
           onChange={(e) => setSetup({ ...setup, fitzpatrickType: e.target.value as FitzpatrickType })}
           className="glass-panel-solid h-11 w-full min-w-0 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
-          {Object.entries(FITZPATRICK_LABELS).map(([key, label]) => (
+          {SKIN_KEYS.map((key) => (
             <option key={key} value={key}>
-              {label}
+              {m.skin.full[key]}
             </option>
           ))}
         </select>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Ground surface</legend>
+        <legend className="text-sm font-medium">{m.session.surface}</legend>
         <select
           value={setup.surface}
           onChange={(e) => setSetup({ ...setup, surface: e.target.value as SurfaceType })}
           className="glass-panel-solid h-11 w-full min-w-0 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
-          {SURFACE_OPTIONS.map(([key, { label }]) => (
+          {SURFACE_KEYS.map((key) => (
             <option key={key} value={key}>
-              {label}
+              {m.surface[key]}
             </option>
           ))}
         </select>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Posture</legend>
+        <legend className="text-sm font-medium">{m.session.posture}</legend>
         <div className="flex gap-2">
           {POSTURE_OPTIONS.map((opt) => (
             <button
-              key={opt.value}
+              key={opt}
               type="button"
-              onClick={() => setSetup({ ...setup, posture: opt.value })}
+              onClick={() => setSetup({ ...setup, posture: opt })}
               className={`flex-1 rounded-[var(--radius)] border px-3 py-2.5 text-sm font-medium ${
-                setup.posture === opt.value
+                setup.posture === opt
                   ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
                   : "border-[var(--border)] text-[var(--muted-foreground)]"
               }`}
             >
-              {opt.label}
+              {m.posture[opt]}
             </button>
           ))}
         </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">Sunscreen (optional)</legend>
+        <legend className="text-sm font-medium">{m.session.sunscreenOptional}</legend>
         <input
           type="number"
           min={1}
           value={setup.spf}
           onChange={(e) => setSetup({ ...setup, spf: e.target.value })}
-          placeholder="SPF (Sun Protection Factor), e.g. 30"
+          placeholder={m.session.spfPlaceholder}
           className="glass-panel-solid h-11 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         />
         {setup.spf && (
           <div className="flex flex-wrap gap-2">
             {THICKNESS_OPTIONS.map((opt) => (
               <button
-                key={opt.label}
+                key={opt.key}
                 type="button"
                 onClick={() => setSetup({ ...setup, thickness: opt.value })}
                 className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -729,7 +727,7 @@ export default function SessionPage() {
                     : "border-[var(--border)] text-[var(--muted-foreground)]"
                 }`}
               >
-                {opt.label}
+                {m.session[opt.key]}
               </button>
             ))}
           </div>
@@ -749,11 +747,16 @@ export default function SessionPage() {
         disabled={!samples || isStarting}
         className="glass-cta mt-2"
       >
-        {isStarting ? "Starting…" : samples ? "Start Session" : "Loading forecast…"}
+        {isStarting ? m.session.starting : samples ? m.session.start : m.session.loadingForecast}
       </Button>
 
-      {lastSavedSummary && (
-        <p className="text-center text-sm text-[var(--muted-foreground)]">{lastSavedSummary}</p>
+      {lastSaved && (
+        <p className="text-center text-sm text-[var(--muted-foreground)]">
+          {t(m.session.lastSession, {
+            date: formatDate(new Date(lastSaved.startedAt), { month: "short", day: "numeric" }),
+            dose: lastSaved.dose,
+          })}
+        </p>
       )}
     </main>
   );
