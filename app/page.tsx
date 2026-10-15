@@ -7,14 +7,14 @@ import { AlertTriangle, ChevronDown, ChevronRight, MapPin, Timer } from "lucide-
 import { computeDoseEstimate } from "@/lib/dose/dose";
 import { interpolateHourlyToMinutes, uviToErythemalIrradianceWm2 } from "@/lib/dose/irradiance";
 import { personalExposureRatio } from "@/lib/dose/corrections";
-import { FITZPATRICK_LABELS } from "@/lib/dose/constants";
 import { fetchOpenMeteoForecastClient } from "@/lib/weather/client";
 import { fetchProfile } from "@/lib/local/profile";
 import { fetchIncidentDoseOnDay, fetchPriorDoseToday } from "@/lib/local/sessions";
 import { loadInProgressSession, type InProgressSession } from "@/lib/local/active-session";
 import type { UserProfile } from "@/lib/local/profile";
 import type { HourlyUVSample, Interval } from "@/lib/dose/types";
-import { budgetFractionLeft, formatMinutes, riskFromEstimate } from "@/lib/risk";
+import { budgetFractionLeft, riskFromEstimate } from "@/lib/risk";
+import { useI18n } from "@/lib/i18n/provider";
 import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
 import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { RiskBadge } from "@/components/ui/risk-badge";
@@ -38,6 +38,7 @@ const ZERO: Interval = { low: 0, nominal: 0, high: 0 };
  */
 export default function NowPage() {
   const router = useRouter();
+  const { m, t, rich, duration, intl } = useI18n();
   const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined);
   const [samples, setSamples] = useState<HourlyUVSample[] | null>(null);
   const [forecastError, setForecastError] = useState<string | null>(null);
@@ -137,9 +138,8 @@ export default function NowPage() {
       <main className="flex min-h-screen items-center justify-center px-6 py-16 pb-28">
         <div className="glass-panel mx-auto flex max-w-md flex-col items-center gap-4 rounded-[calc(var(--radius)+10px)] p-8 text-center">
           <AlertTriangle className="size-10 text-[var(--risk-medium)]" aria-hidden="true" />
-          <p className="text-lg font-semibold">Forecast unavailable</p>
-          <p className="text-sm text-[var(--muted-foreground)]">{forecastError}</p>
-          <p className="text-xs text-[var(--muted-foreground)]">Try again in a few minutes.</p>
+          <p className="text-lg font-semibold">{m.now.forecastUnavailable}</p>
+          <p className="text-sm text-[var(--muted-foreground)]">{m.now.tryAgain}</p>
         </div>
       </main>
     );
@@ -150,7 +150,10 @@ export default function NowPage() {
   }
 
   const fitzpatrickType = profile.fitzpatrickType ?? "II";
-  const locationLabel = running?.location.label ?? profile.homeLabel ?? FALLBACK_LABEL;
+  const rawLocationLabel = running?.location.label ?? profile.homeLabel ?? FALLBACK_LABEL;
+  // Labels the app itself stored in English are shown in the chosen language.
+  const locationLabel =
+    rawLocationLabel === "Current location" ? m.common.currentLocation : rawLocationLabel === "Home" ? m.common.home : rawLocationLabel;
   const risk = riskFromEstimate(estimate);
   // Solar-shaped UV at this minute (same interpolation the dose engine uses).
   const uvNow =
@@ -176,21 +179,21 @@ export default function NowPage() {
         header={
           <header className="flex items-start justify-between gap-3">
             <div className="liquid-glass flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2">
-              <h1 className="text-base font-semibold leading-tight">UV Dose Tracker</h1>
+              <h1 className="text-base font-semibold leading-tight">The ActinicUVDose</h1>
               <a
                 href="https://theactinicshield.org"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-fit rounded-full border border-white/60 bg-white/50 px-2 py-px text-[10px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-white/80 hover:text-[var(--foreground)]"
               >
-                Created by the Actinic Shield
+                {m.common.createdBy}
               </a>
               <p className="flex items-center gap-1 text-xs text-[var(--foreground)]/80">
                 <MapPin className="size-3" aria-hidden="true" />
                 {locationLabel}
               </p>
             </div>
-            <RiskBadge level={risk.level} label={risk.label} />
+            <RiskBadge level={risk.level} label={m.risk[risk.key]} />
           </header>
         }
       />
@@ -201,12 +204,12 @@ export default function NowPage() {
       >
         <BurnTimeHeadline
           estimate={estimate}
-          lead={running ? "Staying out, you could burn in as little as" : "If you go outside now, you could burn in as little as"}
+          lead={running ? m.now.leadStaying : m.now.leadOutside}
           now={now}
           uvNow={uvNow}
         />
         <Button asChild variant="glass" size="session" className="glass-cta w-full">
-          <Link href="/session">{inProgress ? "Open your session" : "Start a session"}</Link>
+          <Link href="/session">{inProgress ? m.now.openSession : m.now.startSession}</Link>
         </Button>
       </section>
 
@@ -219,30 +222,30 @@ export default function NowPage() {
             <Timer className="size-5 text-[var(--accent)]" aria-hidden="true" />
             <span className="flex flex-col">
               <span className="text-sm font-semibold">
-                {inProgress.endedAt ? "Session ended, not saved yet" : "Session in progress"}
+                {inProgress.endedAt ? m.now.sessionEnded : m.now.sessionInProgress}
               </span>
               <span className="text-xs text-[var(--muted-foreground)]">
                 {inProgress.endedAt
-                  ? "Save it so it counts toward today's total"
-                  : `Running for ${formatMinutes((now.getTime() - inProgress.startedAt.getTime()) / 60_000)}`}
+                  ? m.now.saveToCount
+                  : t(m.now.runningFor, { time: duration((now.getTime() - inProgress.startedAt.getTime()) / 60_000) })}
               </span>
             </span>
           </span>
-          <ChevronRight className="size-4 text-[var(--muted-foreground)]" aria-hidden="true" />
+          <ChevronRight className="size-4 text-[var(--muted-foreground)] rtl:rotate-180" aria-hidden="true" />
         </Link>
       )}
 
       <div className="rise-in grid grid-cols-2 gap-3" style={{ animationDelay: "80ms" }}>
         <StatTile
-          label="Peak UV"
+          label={m.now.peakUv}
           value={peak ? peak.uvIndex.toFixed(1) : "–"}
-          caption={peak ? `today at ${peak.time.toLocaleTimeString([], { hour: "numeric" })}` : "No data"}
+          caption={peak ? t(m.now.todayAt, { time: peak.time.toLocaleTimeString(intl, { hour: "numeric" }) }) : m.now.noData}
           compact
         />
         <StatTile
-          label="Used today"
+          label={m.now.usedToday}
           value={`${usedPct}%`}
-          caption={loggedToday ? "of your burn budget" : "nothing logged yet"}
+          caption={loggedToday ? m.now.ofBudget : m.now.nothingLogged}
           compact
         />
       </div>
@@ -250,47 +253,53 @@ export default function NowPage() {
       <WorkExposureCard share={workShare} />
 
       <p className="text-center text-sm text-[var(--muted-foreground)]">
-        Estimated for {FITZPATRICK_LABELS[fitzpatrickType].split(":")[0]} skin, on your most exposed areas
-        (head, shoulders, nose). <Link href="/profile" className="font-medium text-[var(--accent)] underline-offset-2 hover:underline">Change</Link>
+        {t(m.now.estimatedFor, { skin: m.skin.short[fitzpatrickType] })}{" "}
+        <Link href="/profile" className="font-medium text-[var(--accent)] underline-offset-2 hover:underline">
+          {m.now.change}
+        </Link>
       </p>
 
       <details className="glass-panel-solid group rounded-[var(--radius)] p-4 text-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
-          The numbers behind this
+          {m.now.numbersTitle}
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
         <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-[var(--muted-foreground)]">
-          <dt>Dose rate right now</dt>
-          <dd className="hero-number text-right text-[var(--foreground)]">
+          <dt>{m.now.doseRate}</dt>
+          <dd className="hero-number text-end text-[var(--foreground)]">
             {doseRateNow.toFixed(3)} SED/min
           </dd>
-          <dt>Your burn threshold (MED)</dt>
-          <dd className="hero-number text-right text-[var(--foreground)]">
+          <dt>{m.now.threshold}</dt>
+          <dd className="hero-number text-end text-[var(--foreground)]">
             {estimate.medThresholdSED.low.toFixed(1)}–{estimate.medThresholdSED.high.toFixed(1)} SED
           </dd>
-          <dt>Saved sessions today</dt>
-          <dd className="hero-number text-right text-[var(--foreground)]">{priorDoseToday.nominal.toFixed(2)} SED</dd>
+          <dt>{m.now.savedToday}</dt>
+          <dd className="hero-number text-end text-[var(--foreground)]">{priorDoseToday.nominal.toFixed(2)} SED</dd>
           {inProgress && (
             <>
-              <dt>{inProgress.endedAt ? "Unsaved session" : "Session in progress"}</dt>
-              <dd className="hero-number text-right text-[var(--foreground)]">{unsavedDose.nominal.toFixed(2)} SED</dd>
+              <dt>{inProgress.endedAt ? m.now.unsavedSession : m.now.sessionInProgress}</dt>
+              <dd className="hero-number text-end text-[var(--foreground)]">{unsavedDose.nominal.toFixed(2)} SED</dd>
             </>
           )}
-          <dt>Budget left</dt>
-          <dd className="hero-number text-right text-[var(--foreground)]">
+          <dt>{m.now.budgetLeft}</dt>
+          <dd className="hero-number text-end text-[var(--foreground)]">
             {estimate.remainingBudgetSED.nominal.toFixed(1)} SED ({estimate.remainingBudgetSED.low.toFixed(1)}–
             {estimate.remainingBudgetSED.high.toFixed(1)})
           </dd>
         </dl>
         <p className="mt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
-          SED (Standard Erythema Dose) measures UV dose; 1 SED = 100 J/m² of sunburn-weighted UV. The headline uses
-          the earliest likely time from 2,000 simulations that vary your threshold, the forecast, and how much UV your
-          skin catches. See <Link href="/methods" className="font-medium text-[var(--accent)]">Methods</Link> for every source.
+          {rich(m.now.sedExplainer, {
+            methods: (
+              <Link href="/methods" className="font-medium text-[var(--accent)]">
+                {m.nav.methods}
+              </Link>
+            ),
+          })}
         </p>
       </details>
 
       <p className="text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
-        Educational estimate only, not a medical device. Staying under your burn threshold does not mean no UV damage.
+        {m.now.disclaimer}
       </p>
     </main>
   );
