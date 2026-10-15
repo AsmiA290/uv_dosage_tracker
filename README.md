@@ -1,4 +1,4 @@
-# UV Dose Tracker
+# The ActinicUVDose
 
 Personal UV dose tracking for outdoor workers and athletes in central Illinois (IL-13) -- built for the **Congressional App Challenge 2026**. See [docs/project-timeline.md](docs/project-timeline.md) for the dated build plan and blocking action items.
 
@@ -43,7 +43,7 @@ npm install
 npm test
 ```
 
-The suite (106 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, the sky's sun geometry, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
+The suite (151 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, the sky's sun geometry, the translations, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
 
 ## Getting the UI built in v0
 
@@ -75,6 +75,10 @@ Worth adding if you want to push the interactivity/polish further once the four 
 The Now screen opens on a live 3D sky rendered with `three`, `@react-three/fiber` and `@react-three/drei` (already dependencies). The sun sits at its real altitude and azimuth for the user's location and time (`suncalc`), the sky color comes from three.js's physically based scattering model, and cloud cover and rain from the forecast change the haze, clouds and rain shown. A slider previews the sun's position and UV at any time between sunrise and sunset. The 3D code is loaded only after the page renders, so the first load stays light, and it pauses when off screen; with reduced motion turned on, the sky is drawn without animation, and a static gradient stays in place if WebGL is unavailable. **AI disclosure:** `components/sky/` and `lib/sky/` were written with an AI coding assistant (Claude, by Anthropic) and reviewed by the author. The interface typeface is Plus Jakarta Sans (Google Fonts, via `next/font`).
 
 Resist the temptation to add a charting or animation library per screen "just because it looks cool" -- the brief's own "do not" list (scope creep past four screens) applies to dependencies too.
+
+### Languages
+
+The app runs in English, Spanish, Polish, Simplified Chinese, Tagalog, Arabic (right-to-left), Ukrainian, Hindi, Gujarati, Russian and Korean. People choose a language on the first onboarding screen and can change it later in Profile; the choice is stored on the device. English text lives in `lib/i18n/messages/en.ts`, and every other language is a file of the same shape that loads only when chosen. Scientific and regulatory acronyms (SPF, UPF, UV, SED, MED, ICNIRP, ACGIH, OSHA, NIOSH, EPA) and units such as J/m² stay unchanged in every language; a test checks this, along with matching keys and placeholders. On the Methods and Why pages the headings and summaries are translated, while quoted citations and detailed policy text stay in English, the language of the original sources, with a note saying so. Times, dates and numbers follow each language's conventions through the browser's `Intl` formatting. Fonts for Cyrillic, Devanagari, Arabic and Gujarati come from Noto Sans and load only on pages that use those letters; Chinese and Korean use the phone's own fonts. **AI disclosure:** the translation system in `lib/i18n/` and the translations themselves were produced with an AI coding assistant (Claude, by Anthropic) and reviewed by the author; review by native speakers is recommended before wider distribution.
 
 ## Data pipeline
 
