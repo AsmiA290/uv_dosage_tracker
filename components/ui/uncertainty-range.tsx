@@ -28,10 +28,10 @@ export function UncertaintyRange({
   const fmt = (n: number) => n.toFixed(decimals)
 
   return (
-    <span className={cn("hero-number inline-flex items-baseline gap-1.5", className)}>
+    <span dir="ltr" className={cn("hero-number inline-flex items-baseline gap-1.5", className)}>
       <span className={cn("font-semibold text-[var(--foreground)]", size === "md" ? "text-lg" : "text-sm")}>
         {fmt(nominal)}
-        {unit && <span className="ml-1 text-xs font-normal text-[var(--muted-foreground)]">{unit}</span>}
+        {unit && <span className="ms-1 text-xs font-normal text-[var(--muted-foreground)]">{unit}</span>}
       </span>
       <span className="text-sm text-[var(--muted-foreground)]">
         ({fmt(low)}&ndash;{fmt(high)})

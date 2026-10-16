@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { RotateCcw } from "lucide-react";
 import { interpolateHourlyToMinutes } from "@/lib/dose/irradiance";
 import type { HourlyUVSample } from "@/lib/dose/types";
-import { uvCategory } from "@/lib/risk";
+import { uvCategoryKey } from "@/lib/risk";
+import { useI18n } from "@/lib/i18n/provider";
 import { sunPath, sunState } from "@/lib/sky/sun-geometry";
 
 // The 3D sky loads after the page's numbers are on screen; the CSS sky shows meanwhile.
@@ -103,10 +104,6 @@ function fallbackSky(altitudeDeg: number, cloudCoverPct: number): string {
   return "linear-gradient(180deg, #03060f 0%, #0b1530 60%, #142246 85.5%, #070b12 86%, #04070c 100%)";
 }
 
-function clock(t: number): string {
-  return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
 /**
  * Full-bleed live sky at the top of the Now screen. The sun sits at its true
  * height in the sky for this place and time, glows in proportion to the UV
@@ -114,6 +111,8 @@ function clock(t: number): string {
  * previews the sun at any other time today; it eases back to now on its own.
  */
 export function SkyHero({ latitude, longitude, now, samples, header }: SkyHeroProps) {
+  const { m, t, rich, clock: clockOf, intl } = useI18n();
+  const clock = (ms: number) => clockOf(new Date(ms));
   const containerRef = useRef<HTMLElement>(null);
   const reducedMotion = usePrefersReducedMotion();
   const active = useOnScreen(containerRef);
@@ -171,12 +170,12 @@ export function SkyHero({ latitude, longitude, now, samples, header }: SkyHeroPr
   const sliderValue =
     rangeStart !== null && rangeEnd !== null ? Math.min(rangeEnd, Math.max(rangeStart, shownMs)) : 0;
   const altitude = Math.round(sun.altitudeDeg);
-  const sunText = altitude > 0 ? `Sun ${altitude}° up` : altitude > -6 ? "Sun at the horizon" : "Sun below the horizon";
+  const sunText = altitude > 0 ? t(m.sky.sunUp, { deg: altitude }) : altitude > -6 ? m.sky.sunHorizon : m.sky.sunBelow;
 
   return (
     <section
       ref={containerRef}
-      aria-label="Live sky"
+      aria-label={m.sky.label}
       className="relative -mx-6 -mt-8 h-[27rem] overflow-hidden rounded-b-[2.25rem] shadow-[0_24px_48px_-28px_rgba(15,23,42,0.55)]"
     >
       {/* Static sky: shows instantly, and stays if 3D isn't available. */}
@@ -210,21 +209,22 @@ export function SkyHero({ latitude, longitude, now, samples, header }: SkyHeroPr
             className="liquid-glass w-fit rounded-full px-3.5 py-1.5 text-sm font-medium text-[var(--foreground)]"
             aria-live="polite"
           >
-            {previewing && <span className="hero-number mr-1.5 text-[var(--accent)]">{clock(shownMs)}</span>}
-            <span className="hero-number">UV {uv.toFixed(1)}</span> · {uvCategory(uv)} · {sunText}
+            {previewing && <span className="hero-number me-1.5 text-[var(--accent)]">{clock(shownMs)}</span>}
+            <span className="hero-number">UV {uv.toFixed(1)}</span> · {m.uvCategory[uvCategoryKey(uv)]} · {sunText}
           </p>
 
           {rangeStart !== null && rangeEnd !== null && (
             <div className="liquid-glass flex flex-col gap-2 rounded-2xl px-3.5 pb-2.5 pt-3">
               <input
                 type="range"
+                dir="ltr"
                 className="sky-scrubber"
                 min={rangeStart}
                 max={rangeEnd}
                 step={5 * 60_000}
                 value={sliderValue}
                 style={{ backgroundImage: strip }}
-                aria-label="Preview the sun at another time today"
+                aria-label={m.sky.sliderLabel}
                 aria-valuetext={`${clock(sliderValue)}, UV ${uv.toFixed(1)}`}
                 onChange={(e) => {
                   clearHold();
@@ -236,14 +236,12 @@ export function SkyHero({ latitude, longitude, now, samples, header }: SkyHeroPr
               />
               <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted-foreground)]">
                 <span>
-                  {peak ? (
-                    <>
-                      Peak <span className="hero-number font-medium text-[var(--foreground)]">UV {peak.uvIndex.toFixed(1)}</span> at{" "}
-                      {peak.time.toLocaleTimeString([], { hour: "numeric" })}
-                    </>
-                  ) : (
-                    "Today's sun"
-                  )}
+                  {peak
+                    ? rich(m.sky.peakLine, {
+                        uv: <span className="hero-number font-medium text-[var(--foreground)]">UV {peak.uvIndex.toFixed(1)}</span>,
+                        time: peak.time.toLocaleTimeString(intl, { hour: "numeric" }),
+                      })
+                    : m.sky.todaysSun}
                 </span>
                 {previewing ? (
                   <button
@@ -252,10 +250,10 @@ export function SkyHero({ latitude, longitude, now, samples, header }: SkyHeroPr
                     className="flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-[var(--accent)] transition-colors hover:bg-white/50"
                   >
                     <RotateCcw className="size-3" aria-hidden="true" />
-                    Back to now
+                    {m.sky.backToNow}
                   </button>
                 ) : (
-                  <span>Drag to see the sun through the day</span>
+                  <span>{m.sky.dragHint}</span>
                 )}
               </div>
             </div>

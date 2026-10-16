@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LocateFixed, Sun, Timer, LineChart, BookOpen } from "lucide-react";
+import { Languages, LocateFixed, Sun, Timer, LineChart, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FITZPATRICK_LABELS, SURFACE_ALBEDO } from "@/lib/dose/constants";
 import { saveProfile } from "@/lib/local/profile";
+import { LanguagePicker } from "@/components/language-picker";
+import { useI18n } from "@/lib/i18n/provider";
 import type { FitzpatrickType, PostureType, SurfaceType } from "@/lib/dose/types";
 
-const SURFACE_OPTIONS = Object.entries(SURFACE_ALBEDO) as [SurfaceType, { label: string }][];
-const POSTURE_OPTIONS: { value: PostureType; label: string; hint: string }[] = [
-  { value: "standing", label: "Standing", hint: "e.g. fieldwork, coaching, standing shifts" },
-  { value: "sitting", label: "Sitting", hint: "e.g. driving, sideline bench, desk outdoors" },
-  { value: "activeSport", label: "Active sport", hint: "e.g. running, cycling, practice drills" },
-];
+const SURFACE_KEYS = Object.keys(SURFACE_ALBEDO) as SurfaceType[];
+const POSTURE_OPTIONS = [
+  { value: "standing", hint: "hintStanding" },
+  { value: "sitting", hint: "hintSitting" },
+  { value: "activeSport", hint: "hintActive" },
+] as const satisfies readonly { value: PostureType; hint: string }[];
 
 // Springfield, IL — a reasonable central-Illinois default if the user
 // declines location access. They can always change this later from Profile.
@@ -21,17 +23,18 @@ const FALLBACK_LAT = 39.78;
 const FALLBACK_LON = -89.65;
 const FALLBACK_LABEL = "Springfield, IL";
 
-const STEPS = ["Welcome", "Skin type", "Location", "Defaults"] as const;
+const STEPS = ["language", "welcome", "skin", "location", "defaults"] as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { m, t, rich } = useI18n();
   const [step, setStep] = useState(0);
   const [fitzpatrickType, setFitzpatrickType] = useState<FitzpatrickType | null>(null);
   const [homeLabel, setHomeLabel] = useState("");
   const [homeLat, setHomeLat] = useState<number | null>(null);
   const [homeLon, setHomeLon] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<"unavailable" | "failed" | null>(null);
   const [surface, setSurface] = useState<SurfaceType>("grass");
   const [posture, setPosture] = useState<PostureType>("standing");
   const [isSaving, setIsSaving] = useState(false);
@@ -39,7 +42,7 @@ export default function OnboardingPage() {
 
   function useCurrentLocation() {
     if (!("geolocation" in navigator)) {
-      setLocationError("Location isn't available in this browser. Enter a place name instead.");
+      setLocationError("unavailable");
       return;
     }
     setLocating(true);
@@ -48,11 +51,11 @@ export default function OnboardingPage() {
       (position) => {
         setHomeLat(position.coords.latitude);
         setHomeLon(position.coords.longitude);
-        if (!homeLabel) setHomeLabel("Current location");
+        if (!homeLabel) setHomeLabel(m.common.currentLocation);
         setLocating(false);
       },
       () => {
-        setLocationError("Couldn't get your location. Enter a place name and use the default instead.");
+        setLocationError("failed");
         setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 8000 },
@@ -77,7 +80,7 @@ export default function OnboardingPage() {
       router.refresh();
     } catch (error) {
       console.error("[v0] Failed to save onboarding profile:", error);
-      setSaveError(error instanceof Error ? error.message : "Could not save your profile. Please try again.");
+      setSaveError(m.onboarding.saveError);
     } finally {
       setIsSaving(false);
     }
@@ -107,81 +110,79 @@ export default function OnboardingPage() {
         </div>
 
         {step === 0 && (
+          <div className="glass-panel flex flex-col gap-5 rounded-[calc(var(--radius)+10px)] p-7">
+            <span className="glass-pill flex size-14 items-center justify-center self-start rounded-full">
+              <Languages className="size-7 text-[var(--accent)]" aria-hidden="true" />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold">{m.language.title}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{m.language.body}</p>
+            </div>
+            <LanguagePicker />
+          </div>
+        )}
+
+        {step === 1 && (
           <div className="glass-panel flex flex-col gap-6 rounded-[calc(var(--radius)+10px)] p-7">
             <span className="glass-pill flex size-14 items-center justify-center self-start rounded-full">
               <Sun className="size-7 text-[var(--accent)]" aria-hidden="true" />
             </span>
             <div>
-              <h1 className="text-xl font-semibold">Welcome to UV Dose Tracker</h1>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                This app estimates how much UV radiation your skin has absorbed during a session outdoors, using
-                the forecast, your skin type, and what you're standing on. A few quick questions first, so every
-                estimate is personal to you.
-              </p>
+              <h1 className="text-xl font-semibold">{m.onboarding.welcomeTitle}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{m.onboarding.welcomeBody}</p>
             </div>
             <div className="flex flex-col gap-3 text-sm">
               <div className="flex items-start gap-3">
                 <Timer className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-                <p>
-                  <strong className="font-medium">SED</strong> (Standard Erythema Dose) is the unit this app uses
-                  to measure how much UV your skin has absorbed. Think of it like a running total.
-                </p>
+                <p>{rich(m.onboarding.sedExplain, { term: <strong className="font-medium">SED</strong> })}</p>
               </div>
               <div className="flex items-start gap-3">
                 <LineChart className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-                <p>
-                  <strong className="font-medium">MED</strong> (Minimal Erythema Dose) is your estimated sunburn
-                  threshold, in SED, based on your skin type. The app tells you how soon you could reach it.
-                </p>
+                <p>{rich(m.onboarding.medExplain, { term: <strong className="font-medium">MED</strong> })}</p>
               </div>
               <div className="flex items-start gap-3">
                 <BookOpen className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-                <p>Every number and source is listed on the Methods tab, any time you want the details.</p>
+                <p>{m.onboarding.methodsNote}</p>
               </div>
             </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="glass-panel flex flex-1 flex-col gap-5 rounded-[calc(var(--radius)+10px)] p-7">
-            <div>
-              <h1 className="text-xl font-semibold">What's your skin type?</h1>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                This sets your personal sunburn threshold. Pick the description closest to how your skin
-                typically reacts to sun, based on the well-established Fitzpatrick scale.
-              </p>
-            </div>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="sr-only">Skin type</legend>
-              {(Object.keys(FITZPATRICK_LABELS) as FitzpatrickType[]).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setFitzpatrickType(key)}
-                  aria-pressed={fitzpatrickType === key}
-                  className={`rounded-[var(--radius)] border px-4 py-3 text-left text-sm font-medium transition-colors ${
-                    fitzpatrickType === key
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
-                      : "border-[var(--border)] text-[var(--foreground)]"
-                  }`}
-                >
-                  {FITZPATRICK_LABELS[key]}
-                </button>
-              ))}
-            </fieldset>
           </div>
         )}
 
         {step === 2 && (
           <div className="glass-panel flex flex-1 flex-col gap-5 rounded-[calc(var(--radius)+10px)] p-7">
             <div>
-              <h1 className="text-xl font-semibold">Where are you usually outdoors?</h1>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                Used to pull the local UV forecast and sun position. You can change this any time from Profile.
-              </p>
+              <h1 className="text-xl font-semibold">{m.onboarding.skinTitle}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{m.onboarding.skinBody}</p>
+            </div>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="sr-only">{m.session.skinType}</legend>
+              {(Object.keys(FITZPATRICK_LABELS) as FitzpatrickType[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFitzpatrickType(key)}
+                  aria-pressed={fitzpatrickType === key}
+                  className={`rounded-[var(--radius)] border px-4 py-3 text-start text-sm font-medium transition-colors ${
+                    fitzpatrickType === key
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                      : "border-[var(--border)] text-[var(--foreground)]"
+                  }`}
+                >
+                  {m.skin.full[key]}
+                </button>
+              ))}
+            </fieldset>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="glass-panel flex flex-1 flex-col gap-5 rounded-[calc(var(--radius)+10px)] p-7">
+            <div>
+              <h1 className="text-xl font-semibold">{m.onboarding.locTitle}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{m.onboarding.locBody}</p>
             </div>
             <label className="flex flex-col gap-2 text-sm">
-              <span className="font-medium">Place name</span>
+              <span className="font-medium">{m.onboarding.placeName}</span>
               <input
                 type="text"
                 value={homeLabel}
@@ -192,40 +193,39 @@ export default function OnboardingPage() {
             </label>
             <Button type="button" variant="outline" onClick={useCurrentLocation} disabled={locating} className="gap-2">
               <LocateFixed className="size-4" aria-hidden="true" />
-              {locating ? "Locating…" : homeLat !== null ? "Location saved" : "Use my current location"}
+              {locating ? m.common.locating : homeLat !== null ? m.onboarding.locSaved : m.onboarding.useMyLocation}
             </Button>
-            {locationError && <p className="text-xs text-[var(--risk-medium)]">{locationError}</p>}
-            <p className="text-xs text-[var(--muted-foreground)]">
-              Prefer not to share it? Leave this as-is and we'll use a central-Illinois default (
-              {FALLBACK_LABEL}) that you can correct later.
-            </p>
+            {locationError && (
+              <p className="text-xs text-[var(--risk-medium)]">
+                {locationError === "unavailable" ? m.onboarding.locUnavailable : m.onboarding.locFailed}
+              </p>
+            )}
+            <p className="text-xs text-[var(--muted-foreground)]">{t(m.onboarding.locDefault, { place: FALLBACK_LABEL })}</p>
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="glass-panel flex flex-1 flex-col gap-5 rounded-[calc(var(--radius)+10px)] p-7">
             <div>
-              <h1 className="text-xl font-semibold">Your usual conditions</h1>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">
-                These become your defaults for a new session, and you can still change them each time.
-              </p>
+              <h1 className="text-xl font-semibold">{m.onboarding.defaultsTitle}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{m.onboarding.defaultsBody}</p>
             </div>
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium">Ground surface</legend>
+              <legend className="text-sm font-medium">{m.onboarding.surface}</legend>
               <select
                 value={surface}
                 onChange={(e) => setSurface(e.target.value as SurfaceType)}
                 className="glass-panel-solid h-11 w-full min-w-0 rounded-[var(--radius)] px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                {SURFACE_OPTIONS.map(([key, { label }]) => (
+                {SURFACE_KEYS.map((key) => (
                   <option key={key} value={key}>
-                    {label}
+                    {m.surface[key]}
                   </option>
                 ))}
               </select>
             </fieldset>
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium">Typical posture</legend>
+              <legend className="text-sm font-medium">{m.onboarding.posture}</legend>
               <div className="flex flex-col gap-2">
                 {POSTURE_OPTIONS.map((opt) => (
                   <button
@@ -233,14 +233,14 @@ export default function OnboardingPage() {
                     type="button"
                     onClick={() => setPosture(opt.value)}
                     aria-pressed={posture === opt.value}
-                    className={`rounded-[var(--radius)] border px-4 py-2.5 text-left text-sm transition-colors ${
+                    className={`rounded-[var(--radius)] border px-4 py-2.5 text-start text-sm transition-colors ${
                       posture === opt.value
                         ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
                         : "border-[var(--border)] text-[var(--foreground)]"
                     }`}
                   >
-                    <span className="font-medium">{opt.label}</span>
-                    <span className="block text-xs text-[var(--muted-foreground)]">{opt.hint}</span>
+                    <span className="font-medium">{m.posture[opt.value]}</span>
+                    <span className="block text-xs text-[var(--muted-foreground)]">{m.posture[opt.hint]}</span>
                   </button>
                 ))}
               </div>
@@ -252,7 +252,7 @@ export default function OnboardingPage() {
         <div className="mt-auto flex gap-3">
           {step > 0 && (
             <Button variant="outline" size="session" className="flex-1" onClick={() => setStep((s) => s - 1)} disabled={isSaving}>
-              Back
+              {m.common.back}
             </Button>
           )}
           {step < STEPS.length - 1 ? (
@@ -261,9 +261,9 @@ export default function OnboardingPage() {
               size="session"
               className="glass-cta flex-1"
               onClick={() => setStep((s) => s + 1)}
-              disabled={step === 1 && !fitzpatrickType}
+              disabled={step === 2 && !fitzpatrickType}
             >
-              Continue
+              {m.onboarding.continue}
             </Button>
           ) : (
             <Button
@@ -273,7 +273,7 @@ export default function OnboardingPage() {
               onClick={handleFinish}
               disabled={isSaving || !fitzpatrickType}
             >
-              {isSaving ? "Saving…" : "Finish"}
+              {isSaving ? m.common.saving : m.onboarding.finish}
             </Button>
           )}
         </div>

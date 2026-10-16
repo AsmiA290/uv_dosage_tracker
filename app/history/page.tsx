@@ -24,6 +24,7 @@ import type { RiskLevel } from "@/components/ui/stat-tile";
 import { fractionOfDailyLimit } from "@/lib/dose/occupational";
 import { buildExposureLogCsv, exposureLogFileName } from "@/lib/export/exposure-log";
 import { formatLimitShare } from "@/lib/risk";
+import { useI18n } from "@/lib/i18n/provider";
 
 // Recharts writes colors into SVG presentation attributes (fill="..."),
 // where CSS custom properties like var(--risk-low) are not resolved, so
@@ -40,8 +41,6 @@ const CHART = {
   grid: "#e4e4e7",
 };
 
-const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 function startOfWeek(d: Date) {
   const copy = new Date(d);
   copy.setHours(0, 0, 0, 0);
@@ -55,7 +54,7 @@ function riskForRatio(ratio: number): RiskLevel {
   return "low";
 }
 
-function buildWeekData(sessions: HistoricalSession[]) {
+function buildWeekData(sessions: HistoricalSession[], dayLabels: string[]) {
   const weekStart = startOfWeek(new Date());
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(weekStart);
@@ -77,7 +76,7 @@ function buildWeekData(sessions: HistoricalSession[]) {
   }
 
   return days.map((d, i) => ({
-    label: DAY_LABELS[i],
+    label: dayLabels[i],
     dose: Number(d.dose.toFixed(2)),
     range: d.hasData ? [Number(d.low.toFixed(2)), Number(d.high.toFixed(2))] : [0, 0],
     risk: (d.threshold > 0 ? riskForRatio(d.dose / d.threshold) : "low") as RiskLevel,
@@ -94,7 +93,7 @@ function localDayKey(d: Date): string {
  * Rolling 7- and 30-day dose totals over CALENDAR days (days with no
  * sessions count as zero), for each day that has a session.
  */
-function buildTrendData(sessions: HistoricalSession[]) {
+function buildTrendData(sessions: HistoricalSession[], intl: string) {
   const byDay = new Map<string, { date: Date; dose: number }>();
   for (const s of sessions) {
     const started = new Date(s.startedAt);
@@ -113,7 +112,7 @@ function buildTrendData(sessions: HistoricalSession[]) {
       .reduce((sum, d) => sum + d.dose, 0);
   };
   return days.map(({ date }) => ({
-    day: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    day: date.toLocaleDateString(intl, { month: "short", day: "numeric" }),
     sevenDay: Number(windowTotal(date, 7).toFixed(2)),
     thirtyDay: Number(windowTotal(date, 30).toFixed(2)),
   }));
@@ -139,7 +138,9 @@ function downloadExposureLog(sessions: HistoricalSession[]) {
 }
 
 function SessionRow({ session }: { session: HistoricalSession }) {
+  const { m, duration, intl } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const surfaceLabel = (m.surface as Record<string, string>)[session.surface] ?? session.surface;
   const start = new Date(session.startedAt);
   const end = new Date(session.endedAt);
   const durationMin = Math.round((end.getTime() - start.getTime()) / 60_000);
@@ -149,15 +150,15 @@ function SessionRow({ session }: { session: HistoricalSession }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+        className="flex w-full items-center justify-between gap-3 p-4 text-start"
         aria-expanded={expanded}
       >
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium">
-            {start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+            {start.toLocaleDateString(intl, { weekday: "short", month: "short", day: "numeric" })}
           </span>
           <span className="text-xs text-[var(--muted-foreground)]">
-            {durationMin} min · {session.surface}
+            {duration(durationMin)} · {surfaceLabel}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -177,16 +178,16 @@ function SessionRow({ session }: { session: HistoricalSession }) {
       {expanded && (
         <div className="flex flex-col gap-2 border-t border-[var(--border)] p-4 text-sm">
           <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">Skin type</span>
-            <span>{session.fitzpatrickType}</span>
+            <span className="text-[var(--muted-foreground)]">{m.history.skinType}</span>
+            <span>{m.skin.short[session.fitzpatrickType]}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[var(--muted-foreground)]">Burn threshold (MED)</span>
+            <span className="text-[var(--muted-foreground)]">{m.history.threshold}</span>
             <span className="hero-number">{session.medThresholdSED.nominal.toFixed(1)} SED</span>
           </div>
           {session.incidentDoseSED && (
             <div className="flex justify-between gap-3">
-              <span className="text-[var(--muted-foreground)]">Share of daily work limit</span>
+              <span className="text-[var(--muted-foreground)]">{m.history.workShare}</span>
               <span className="hero-number">
                 {formatLimitShare(fractionOfDailyLimit(session.incidentDoseSED).nominal)}
               </span>
@@ -194,8 +195,8 @@ function SessionRow({ session }: { session: HistoricalSession }) {
           )}
           {session.location && (
             <div className="flex justify-between gap-3">
-              <span className="text-[var(--muted-foreground)]">Location</span>
-              <span className="flex items-center gap-1 text-right">
+              <span className="text-[var(--muted-foreground)]">{m.history.location}</span>
+              <span className="flex items-center gap-1 text-end">
                 <MapPin className="size-3 shrink-0" aria-hidden="true" />
                 {session.location.label}
               </span>
@@ -211,9 +212,10 @@ function SessionRow({ session }: { session: HistoricalSession }) {
 }
 
 export default function HistoryPage() {
+  const { m, intl, weekdays } = useI18n();
   const { sessions, isLoading } = useSessionHistory();
-  const weekData = useMemo(() => buildWeekData(sessions), [sessions]);
-  const trendData = useMemo(() => buildTrendData(sessions), [sessions]);
+  const weekData = useMemo(() => buildWeekData(sessions, weekdays), [sessions, weekdays]);
+  const trendData = useMemo(() => buildTrendData(sessions, intl), [sessions, intl]);
   const weekThreshold = Math.max(0, ...weekData.map((d) => d.threshold));
 
   if (isLoading) {
@@ -228,12 +230,12 @@ export default function HistoryPage() {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 px-6 py-16 pb-28 text-center">
         <CalendarPlus className="size-10 text-[var(--accent)]" aria-hidden="true" />
-        <p className="text-lg font-semibold">No sessions yet</p>
+        <p className="text-lg font-semibold">{m.history.emptyTitle}</p>
         <p className="text-sm text-[var(--muted-foreground)]">
-          Start and save your first session to see your weekly UV load here.
+          {m.history.emptyBody}
         </p>
         <Button asChild variant="glass" size="session" className="glass-cta">
-          <Link href="/session">Start a session</Link>
+          <Link href="/session">{m.now.startSession}</Link>
         </Button>
       </main>
     );
@@ -241,11 +243,12 @@ export default function HistoryPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-8 px-6 py-8 pb-28">
-      <h1 className="text-lg font-semibold">History</h1>
+      <h1 className="text-lg font-semibold">{m.history.title}</h1>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">This week</h2>
-        <div className="glass-panel-solid h-56 rounded-[var(--radius)] p-3">
+        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">{m.history.thisWeek}</h2>
+        {/* Charts stay left-to-right in every language so time runs the same way. */}
+        <div dir="ltr" className="glass-panel-solid h-56 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weekData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -253,7 +256,7 @@ export default function HistoryPage() {
               <YAxis tick={{ fontSize: 11, fill: CHART.muted }} axisLine={false} tickLine={false} width={34} allowDecimals domain={[0, (max: number) => Math.ceil(Math.max(max, weekThreshold) * 1.15)]} />
               <Tooltip
                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value.toFixed(2)} SED`, "Dose"]}
+                formatter={(value: number) => [`${value.toFixed(2)} SED`, m.history.dose]}
               />
               {weekThreshold > 0 && (
                 <ReferenceLine
@@ -271,7 +274,7 @@ export default function HistoryPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <ul className="grid grid-cols-7 gap-1 text-center text-[10px] text-[var(--muted-foreground)]">
+        <ul dir="ltr" className="grid grid-cols-7 gap-1 text-center text-[10px] text-[var(--muted-foreground)]">
           {weekData.map((d, i) => (
             <li key={i} className="hero-number">
               {d.dose > 0 ? d.dose.toFixed(1) : "–"}
@@ -281,8 +284,8 @@ export default function HistoryPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">Cumulative trend</h2>
-        <div className="glass-panel-solid h-48 rounded-[var(--radius)] p-3">
+        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">{m.history.trend}</h2>
+        <div dir="ltr" className="glass-panel-solid h-48 rounded-[var(--radius)] p-3">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trendData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -291,15 +294,15 @@ export default function HistoryPage() {
               <Tooltip
                 contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
               />
-              <Area isAnimationActive={false} type="monotone" dataKey="thirtyDay" stroke={CHART.muted} fill={CHART.muted} fillOpacity={0.08} strokeWidth={1.5} name="30-day total" />
-              <Area isAnimationActive={false} type="monotone" dataKey="sevenDay" stroke={CHART.accent} fill={CHART.accent} fillOpacity={0.15} strokeWidth={2} name="7-day total" />
+              <Area isAnimationActive={false} type="monotone" dataKey="thirtyDay" stroke={CHART.muted} fill={CHART.muted} fillOpacity={0.08} strokeWidth={1.5} name={m.history.thirtyDay} />
+              <Area isAnimationActive={false} type="monotone" dataKey="sevenDay" stroke={CHART.accent} fill={CHART.accent} fillOpacity={0.15} strokeWidth={2} name={m.history.sevenDay} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">Sessions</h2>
+        <h2 className="text-sm font-medium text-[var(--muted-foreground)]">{m.history.sessions}</h2>
         <ul className="flex flex-col gap-2">
           {sessions.map((s) => (
             <SessionRow key={s.id} session={s} />
@@ -309,19 +312,17 @@ export default function HistoryPage() {
 
       <section className="glass-panel-solid flex flex-col gap-3 rounded-[var(--radius)] p-5" aria-labelledby="exposure-log-heading">
         <h2 id="exposure-log-heading" className="text-sm font-semibold text-[var(--foreground)]">
-          Your exposure log
+          {m.history.logTitle}
         </h2>
         <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
-          Download every saved session as a spreadsheet: dates, places, hours, UV dose, and the share of the daily
-          work-exposure limit. Keeping a dated record can help if you raise sun exposure with an employer or a doctor.
+          {m.history.logBody}
         </p>
         <Button variant="outline" onClick={() => downloadExposureLog(sessions)} className="w-fit gap-1.5">
           <Download className="size-4" aria-hidden="true" />
-          Export log (CSV)
+          {m.history.export}
         </Button>
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
-          The file is made on this device and goes nowhere unless you share it. It is a personal record of estimates
-          from the forecast, not a measurement and not legal evidence.
+          {m.history.logFine}
         </p>
       </section>
     </main>

@@ -1,5 +1,8 @@
+"use client";
+
 import type { DoseEstimate } from "@/lib/dose/types";
-import { clockLabel, formatMinutes, LOW_UV_NOW } from "@/lib/risk";
+import { LOW_UV_NOW } from "@/lib/risk";
+import { useI18n } from "@/lib/i18n/provider";
 
 interface BurnTimeHeadlineProps {
   estimate: DoseEstimate;
@@ -18,13 +21,14 @@ interface BurnTimeHeadlineProps {
  * forecast" in words instead of misleading durations or "N/A".
  */
 export function BurnTimeHeadline({ estimate, lead, now, uvNow }: BurnTimeHeadlineProps) {
+  const { m, t, duration, clockAfter } = useI18n();
   const { p10Minutes, p50Minutes, p90Minutes } = estimate.timeToThreshold;
 
   if (estimate.remainingBudgetSED.nominal <= 0 || p10Minutes === 0) {
     return (
       <div className="flex flex-col gap-1 text-center">
-        <p className="text-2xl font-semibold text-[var(--risk-high)]">You may have reached your burn threshold</p>
-        <p className="text-sm text-[var(--muted-foreground)]">Get into shade and cover up.</p>
+        <p className="text-2xl font-semibold text-[var(--risk-high)]">{m.burn.reachedTitle}</p>
+        <p className="text-sm text-[var(--muted-foreground)]">{m.burn.reachedBody}</p>
       </div>
     );
   }
@@ -32,11 +36,9 @@ export function BurnTimeHeadline({ estimate, lead, now, uvNow }: BurnTimeHeadlin
   if (now && uvNow !== undefined && uvNow < LOW_UV_NOW) {
     return (
       <div className="flex flex-col gap-1 text-center">
-        <p className="text-2xl font-semibold text-[var(--foreground)]">UV is low right now</p>
+        <p className="text-2xl font-semibold text-[var(--foreground)]">{m.burn.lowNowTitle}</p>
         <p className="text-sm text-[var(--muted-foreground)]">
-          {Number.isFinite(p10Minutes)
-            ? `If you stayed outside from now on, the earliest you could burn is around ${clockLabel(now, p10Minutes)}, once the sun gets stronger.`
-            : "Sunburn isn't expected for the rest of the forecast."}
+          {Number.isFinite(p10Minutes) ? t(m.burn.lowNowBody, { time: clockAfter(now, p10Minutes) }) : m.burn.lowNowNever}
         </p>
       </div>
     );
@@ -45,10 +47,8 @@ export function BurnTimeHeadline({ estimate, lead, now, uvNow }: BurnTimeHeadlin
   if (!Number.isFinite(p10Minutes)) {
     return (
       <div className="flex flex-col gap-1 text-center">
-        <p className="text-2xl font-semibold text-[var(--foreground)]">Sunburn not expected today</p>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          UV stays too low for the rest of the forecast to reach your burn threshold.
-        </p>
+        <p className="text-2xl font-semibold text-[var(--foreground)]">{m.burn.notExpectedTitle}</p>
+        <p className="text-sm text-[var(--muted-foreground)]">{m.burn.notExpectedBody}</p>
       </div>
     );
   }
@@ -56,12 +56,11 @@ export function BurnTimeHeadline({ estimate, lead, now, uvNow }: BurnTimeHeadlin
   return (
     <div className="flex flex-col gap-1 text-center">
       <p className="text-sm text-[var(--muted-foreground)]">{lead}</p>
-      <p className="hero-number text-6xl font-semibold tracking-tight text-[var(--foreground)]">
-        {formatMinutes(p10Minutes)}
-      </p>
+      <p className="hero-number text-6xl font-semibold tracking-tight text-[var(--foreground)]">{duration(p10Minutes)}</p>
       <p className="text-sm text-[var(--muted-foreground)]">
-        Most likely around {formatMinutes(p50Minutes)}
-        {Number.isFinite(p90Minutes) ? `, up to ${formatMinutes(p90Minutes)}` : ""}
+        {Number.isFinite(p90Minutes)
+          ? t(m.burn.mostLikelyRange, { p50: duration(p50Minutes), p90: duration(p90Minutes) })
+          : t(m.burn.mostLikely, { p50: duration(p50Minutes) })}
       </p>
     </div>
   );

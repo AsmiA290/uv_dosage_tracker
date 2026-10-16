@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Noto_Sans, Noto_Sans_Arabic, Noto_Sans_Gujarati, Plus_Jakarta_Sans } from "next/font/google";
 import { BottomNav } from "@/components/ui/bottom-nav";
+import { LOCALE_BOOT_SCRIPT } from "@/lib/i18n/config";
+import { I18nProvider } from "@/lib/i18n/provider";
 import "./globals.css";
 
 // Plus Jakarta Sans: soft, rounded letterforms that suit the liquid glass look,
@@ -11,8 +13,14 @@ const jakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+// Scripts Plus Jakarta Sans does not cover. Each file is fetched only when a
+// page actually uses its letters; Chinese and Korean use the phone's own fonts.
+const notoSans = Noto_Sans({ subsets: ["cyrillic", "devanagari"], variable: "--font-noto", display: "swap", preload: false });
+const notoArabic = Noto_Sans_Arabic({ subsets: ["arabic"], variable: "--font-noto-arabic", display: "swap", preload: false });
+const notoGujarati = Noto_Sans_Gujarati({ subsets: ["gujarati"], variable: "--font-noto-gujarati", display: "swap", preload: false });
+
 export const metadata: Metadata = {
-  title: "UV Dose Tracker",
+  title: "The ActinicUVDose",
   description:
     "Personal UV dose tracking for outdoor workers and athletes in central Illinois: a radiation badge for sunlight. Educational use only; not a diagnostic tool.",
   manifest: "/manifest.json",
@@ -38,10 +46,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" className={jakartaSans.variable}>
+    <html
+      lang="en"
+      data-theme="light"
+      className={`${jakartaSans.variable} ${notoSans.variable} ${notoArabic.variable} ${notoGujarati.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-screen bg-[var(--background)] font-sans antialiased">
-        {children}
-        <BottomNav />
+        <I18nProvider>
+          {children}
+          <BottomNav />
+        </I18nProvider>
       </body>
     </html>
   );

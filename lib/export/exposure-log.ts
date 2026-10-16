@@ -83,7 +83,7 @@ export function buildExposureLogCsv(sessions: HistoricalSession[], generatedAt: 
   }
 
   const header = [
-    "# UV Dose Tracker exposure log (a program of The Actinic Shield)",
+    "# The ActinicUVDose exposure log (a program of The Actinic Shield)",
     `# Generated ${localDate(generatedAt)} ${localTime(generatedAt)} (device local time)`,
     "# Personal record of ESTIMATES from forecast UV data. Not a measurement. Not medical advice. Not legal evidence.",
     "# dose_sed: UV dose on the most exposed skin after sunscreen. 1 SED = 100 J/m2 of sunburn-weighted UV.",
