@@ -39,6 +39,7 @@ import { BurnTimeHeadline } from "@/components/burn-time-headline";
 import { budgetFractionLeft, riskFromEstimate } from "@/lib/risk";
 import { fractionOfDailyLimit, sumIntervals } from "@/lib/dose/occupational";
 import { WorkExposureCard } from "@/components/work-exposure-card";
+import { SessionAlerts } from "@/components/session-alerts";
 
 // Springfield, IL is only a fallback for the rare case a profile has no
 // saved location yet. Normal use always comes from the user's own profile.
@@ -257,9 +258,11 @@ export default function SessionPage() {
     });
   }, [samples, ended]);
 
+  // Only the most recent layer matters: once the user reapplies, the
+  // reminder goes away even though older layers have worn off.
   const reapplyNeeded = useMemo(() => {
-    if (!active || active.applications.length === 0) return false;
-    return active.applications.some((a) => shouldReapply(a, now));
+    const latest = active?.applications.at(-1);
+    return latest ? shouldReapply(latest, now) : false;
   }, [active, now]);
 
   async function handleStart() {
@@ -492,6 +495,18 @@ export default function SessionPage() {
             {m.session.end}
           </Button>
         </header>
+
+        <SessionAlerts
+          sessionId={active.id}
+          inputs={{
+            budgetFractionLeft: estimate ? budgetFraction : null,
+            reapplyDue: reapplyNeeded,
+            applicationCount: active.applications.length,
+            workShare: estimate
+              ? fractionOfDailyLimit(sumIntervals(priorWorkDose, estimate.sessionIncidentDoseSED)).nominal
+              : null,
+          }}
+        />
 
         {elapsedMin >= LONG_SESSION_MINUTES && (
           <div className="flex items-start gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
