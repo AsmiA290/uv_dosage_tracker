@@ -1,31 +1,53 @@
 import { ImageResponse } from "next/og";
 
-// Sun glyph (Font Awesome "sun", MIT/CC-BY via react-icons), 512x512 viewBox.
-const SUN_PATH =
-  "M361.5 1.2c5 2.1 8.6 6.6 9.6 11.9L391 121l107.9 19.8c5.3 1 9.8 4.6 11.9 9.6s1.5 10.7-1.6 15.2L446.9 256l62.3 90.3c3.1 4.5 3.7 10.2 1.6 15.2s-6.6 8.6-11.9 9.6L391 391 371.1 498.9c-1 5.3-4.6 9.8-9.6 11.9s-10.7 1.5-15.2-1.6L256 446.9l-90.3 62.3c-4.5 3.1-10.2 3.7-15.2 1.6s-8.6-6.6-9.6-11.9L121 391 13.1 371.1c-5.3-1-9.8-4.6-11.9-9.6s-1.5-10.7 1.6-15.2L65.1 256 2.8 165.7c-3.1-4.5-3.7-10.2-1.6-15.2s6.6-8.6 11.9-9.6L121 121 140.9 13.1c1-5.3 4.6-9.8 9.6-11.9s10.7-1.5 15.2 1.6L256 65.1 346.3 2.8c4.5-3.1 10.2-3.7 15.2-1.6zM160 256a96 96 0 1 1 192 0 96 96 0 1 1 -192 0zm224 0a128 128 0 1 0 -256 0 128 128 0 1 0 256 0z";
+// Logo colors: deep teal square, teal shield with a gold outline, gold sun,
+// cream diagonal rays. Matches the app's accent (#0F766E) and sun (#FCD34D).
+const DEEP = "#134E4A";
+const TEAL = "#0F766E";
+const GOLD = "#FCD34D";
+const CREAM = "#FEF3C7";
+
+const SHIELD =
+  "M256 70 C 300 92, 350 100, 392 104 L 392 250 C 392 340, 330 400, 256 438 C 182 400, 120 340, 120 250 L 120 104 C 162 100, 212 92, 256 70 Z";
+
+function rays(r1: number, r2: number, angles: number[], color: string): string {
+  return angles
+    .map((deg) => {
+      const t = (deg * Math.PI) / 180;
+      const [x1, y1] = [256 + r1 * Math.cos(t), 252 + r1 * Math.sin(t)];
+      const [x2, y2] = [256 + r2 * Math.cos(t), 252 + r2 * Math.sin(t)];
+      return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="22" stroke-linecap="round"/>`;
+    })
+    .join("");
+}
 
 /**
- * App icon (teal square, yellow sun), rendered as a PNG at build time.
- * Generated in code instead of committed as binary files; the sun fills
- * ~56% of the square so it stays inside the "maskable" safe zone.
+ * The ActinicUVDose logo as SVG: a shield with the sun inside, for the
+ * Actinic Shield. The mark is scaled to 82% so it stays inside the
+ * "maskable" safe zone when a phone crops the icon to a circle.
  */
+export function logoSvg(): string {
+  const mark =
+    `<path d="${SHIELD}" fill="${TEAL}" stroke="${GOLD}" stroke-width="26" stroke-linejoin="round"/>` +
+    rays(74, 104, [0, 90, 180, 270], GOLD) +
+    rays(74, 98, [45, 135, 225, 315], CREAM) +
+    `<circle cx="256" cy="252" r="50" fill="${GOLD}"/>`;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">` +
+    `<rect width="512" height="512" fill="${DEEP}"/>` +
+    `<g transform="translate(256 256) scale(0.82) translate(-256 -256)">${mark}</g>` +
+    `</svg>`
+  );
+}
+
+/** App icon rendered as a PNG at build time, generated in code instead of committed as binary files. */
 export function renderAppIcon(size: number): ImageResponse {
-  const glyph = Math.round(size * 0.56);
+  const src = `data:image/svg+xml;base64,${Buffer.from(logoSvg()).toString("base64")}`;
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#0F766E",
-        }}
-      >
-        <svg width={glyph} height={glyph} viewBox="0 0 512 512">
-          <path d={SUN_PATH} fill="#FCD34D" />
-        </svg>
+      <div style={{ width: "100%", height: "100%", display: "flex", background: DEEP }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} width={size} height={size} alt="" />
       </div>
     ),
     { width: size, height: size }

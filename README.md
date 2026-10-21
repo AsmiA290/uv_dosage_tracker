@@ -43,7 +43,7 @@ npm install
 npm test
 ```
 
-The suite (151 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, the sky's sun geometry, the translations, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
+The suite (162 tests across the dose engine, the work-exposure limit, forecast time handling, session persistence, the exposure-log export, the sky's sun geometry, the translations, session alerts, and display helpers) passes as of the October 2026 revision. The config file is `vitest.config.mts` because `vite-tsconfig-paths` is ESM-only.
 
 ## Getting the UI built in v0
 
@@ -75,6 +75,10 @@ Worth adding if you want to push the interactivity/polish further once the four 
 The Now screen opens on a live 3D sky rendered with `three`, `@react-three/fiber` and `@react-three/drei` (already dependencies). The sun sits at its real altitude and azimuth for the user's location and time (`suncalc`), the sky color comes from three.js's physically based scattering model, and cloud cover and rain from the forecast change the haze, clouds and rain shown. A slider previews the sun's position and UV at any time between sunrise and sunset. The 3D code is loaded only after the page renders, so the first load stays light, and it pauses when off screen; with reduced motion turned on, the sky is drawn without animation, and a static gradient stays in place if WebGL is unavailable. **AI disclosure:** `components/sky/` and `lib/sky/` were written with an AI coding assistant (Claude, by Anthropic) and reviewed by the author. The interface typeface is Plus Jakarta Sans (Google Fonts, via `next/font`).
 
 Resist the temptation to add a charting or animation library per screen "just because it looks cool" -- the brief's own "do not" list (scope creep past four screens) applies to dependencies too.
+
+### Session alerts
+
+During a session the app shows a pop-up when it is time to reapply sunscreen (the latest layer has about half worn off), when about three quarters of the day's burn budget is used, when the estimated burn threshold is reached, and when the day's UV on skin reaches the ICNIRP/ACGIH workplace limit. The rules live in `lib/alerts.ts` and are unit tested; each alert appears once per session. On screen the alert is an in-app banner; if the user turns on notifications and the app is in the background, it is also a system notification (`lib/notify.ts`, shown through the service worker). Notifications are created on the device, with no server and no push service, so they work only while the app is open or running in the background; on iPhone the app must first be added to the Home Screen. **AI disclosure:** the alerts feature was written with an AI coding assistant (Claude, by Anthropic) and reviewed by the author.
 
 ### Languages
 
